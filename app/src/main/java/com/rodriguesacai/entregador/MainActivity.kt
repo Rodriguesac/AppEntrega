@@ -1,4 +1,4 @@
-package com.rodrigues.entregador
+package com.rodriguesacai.entregador
 
 import android.Manifest
 import android.content.Intent
@@ -7,8 +7,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import com.rodrigues.entregador.service.OnlineDriverService
-import com.rodrigues.entregador.ui.DriverHomeScreen
+import com.rodriguesacai.entregador.service.OnlineDriverService
+import com.rodriguesacai.entregador.ui.DriverHomeScreen
 
 class MainActivity : ComponentActivity() {
     private val permissionLauncher = registerForActivityResult(

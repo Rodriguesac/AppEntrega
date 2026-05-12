@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.rodrigues.entregador"
+    namespace = "com.rodriguesacai.entregador"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rodrigues.entregador"
+        applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

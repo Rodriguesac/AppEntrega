@@ -1,10 +1,10 @@
-package com.rodrigues.entregador
+package com.rodriguesacai.entregador
 
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.rodrigues.entregador.ui.UrgentRideScreen
+import com.rodriguesacai.entregador.ui.UrgentRideScreen
 
 class UrgentRideActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
