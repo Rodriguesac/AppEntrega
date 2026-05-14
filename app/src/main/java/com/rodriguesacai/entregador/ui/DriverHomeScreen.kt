@@ -1,5 +1,17 @@
 package com.rodriguesacai.entregador.ui
 
+import android.content.Context
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.BatteryManager
+import android.provider.Settings
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,8 +33,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,12 +58,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +76,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import coil.compose.AsyncImage
 import com.rodriguesacai.entregador.AppSettings
 import com.rodriguesacai.entregador.PermissionStatusReader
 import com.rodriguesacai.entregador.RodriguesFonts
@@ -72,7 +100,7 @@ import com.rodriguesacai.entregador.data.DriverStats
 import com.rodriguesacai.entregador.service.AppAlertPlayer
 import kotlinx.coroutines.delay
 
-private enum class AppTab { Inicio, Ganhos, Historico, Conta, Mais }
+private enum class AppTab { Inicio, Corridas, Ganhos, Historico, Conta }
 
 private val AppFont = RodriguesFonts.Montserrat
 private val BgTop = Color(0xFF0B0A10)
@@ -89,6 +117,18 @@ private val Muted2 = Color(0xFF8C8797)
 private val Danger = Color(0xFFFF4D6D)
 private val Warning = Color(0xFFFFB020)
 private val Blue = Color(0xFF1677FF)
+
+private enum class AvailabilityKind { Disponivel, Indisponivel, Restricao, EmEntrega }
+
+private data class OperationalStatus(
+    val kind: AvailabilityKind,
+    val label: String,
+    val message: String,
+    val buttonColor: Color,
+    val textColor: Color,
+    val canGoOnline: Boolean
+)
+
 
 @Composable
 fun DriverHomeScreen(
@@ -193,11 +233,11 @@ fun DriverHomeScreen(
         containerColor = BgBottom,
         bottomBar = {
             NavigationBar(containerColor = Color(0xFF100B16), tonalElevation = 0.dp) {
-                navItem(AppTab.Inicio, tab, "Início", "⌂") { tab = it }
-                navItem(AppTab.Ganhos, tab, "Ganhos", "R$") { tab = it }
-                navItem(AppTab.Historico, tab, "Histórico", "◷") { tab = it }
-                navItem(AppTab.Conta, tab, "Conta", "◉") { tab = it }
-                navItem(AppTab.Mais, tab, "Mais", "≡") { tab = it }
+                navItem(AppTab.Inicio, tab, "Início", Icons.Filled.Home) { tab = it }
+                navItem(AppTab.Corridas, tab, "Corridas", Icons.Filled.Route) { tab = it }
+                navItem(AppTab.Ganhos, tab, "Ganhos", Icons.Filled.AccountBalanceWallet) { tab = it }
+                navItem(AppTab.Historico, tab, "Histórico", Icons.Filled.History) { tab = it }
+                navItem(AppTab.Conta, tab, "Conta", Icons.Filled.Person) { tab = it }
             }
         }
     ) { padding ->
@@ -237,12 +277,34 @@ fun DriverHomeScreen(
                     },
                     onOpenNavigator = onOpenNavigator
                 )
+                AppTab.Corridas -> RidesContent(
+                    pendingRide = pendingRide,
+                    activeRide = activeRide,
+                    online = online,
+                    onAccept = { ride ->
+                        DriverRepository.acceptRide(context, ride.id, onDone = { pendingRide = null }, onError = { error = it })
+                    },
+                    onReject = { ride, reason ->
+                        DriverRepository.rejectRide(context, ride.id, reason = reason, onDone = { pendingRide = null }, onError = { error = it })
+                    },
+                    onExpire = { ride ->
+                        DriverRepository.expireRide(context, ride.id, onDone = { pendingRide = null }, onError = { error = it })
+                    },
+                    onUpdateRide = { ride, status ->
+                        DriverRepository.updateRideStatus(context, ride.id, status, onDone = { }, onError = { error = it })
+                    },
+                    onOpenNavigator = onOpenNavigator
+                )
                 AppTab.Ganhos -> EarningsContent(profile!!, stats, history)
                 AppTab.Historico -> HistoryContent(history)
                 AppTab.Conta -> AccountContent(
                     profile = profile!!,
                     online = online,
                     onProfileChanged = { profile = DriverRepository.currentSession(context) ?: profile },
+                    onOpenNotificationSettings = onOpenNotificationSettings,
+                    onOpenLocationSettings = onOpenLocationSettings,
+                    onOpenFullScreenSettings = onOpenFullScreenSettings,
+                    onOpenBatterySettings = onOpenBatterySettings,
                     onLogout = {
                         onGoOffline()
                         DriverRepository.logout(context) {
@@ -253,12 +315,6 @@ fun DriverHomeScreen(
                             tab = AppTab.Inicio
                         }
                     }
-                )
-                AppTab.Mais -> MoreContent(
-                    onOpenNotificationSettings = onOpenNotificationSettings,
-                    onOpenLocationSettings = onOpenLocationSettings,
-                    onOpenFullScreenSettings = onOpenFullScreenSettings,
-                    onOpenBatterySettings = onOpenBatterySettings
                 )
             }
         }
@@ -481,12 +537,12 @@ private fun FirstPasswordScreen(profile: DriverProfile, onSaved: () -> Unit, onL
 }
 
 @Composable
-private fun RowScope.navItem(item: AppTab, selected: AppTab, label: String, icon: String, onClick: (AppTab) -> Unit) {
+private fun RowScope.navItem(item: AppTab, selected: AppTab, label: String, icon: ImageVector, onClick: (AppTab) -> Unit) {
     NavigationBarItem(
         selected = selected == item,
         onClick = { onClick(item) },
-        icon = { Text(icon, fontSize = 19.sp, fontWeight = FontWeight.Black) },
-        label = { Text(label, fontSize = 11.sp, fontFamily = AppFont) },
+        icon = { Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp)) },
+        label = { Text(label, fontSize = 10.sp, fontFamily = AppFont, fontWeight = if (selected == item) FontWeight.Black else FontWeight.SemiBold) },
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Ink,
             selectedTextColor = Ink,
@@ -512,6 +568,22 @@ private fun HomeContent(
     onUpdateRide: (DriverRide, String) -> Unit,
     onOpenNavigator: (pickup: String, dropoff: String) -> Unit
 ) {
+    val context = LocalContext.current
+    var operational by remember { mutableStateOf(readOperationalStatus(context, profile, online, activeRide)) }
+
+    LaunchedEffect(profile.id, online, activeRide?.id) {
+        while (true) {
+            operational = readOperationalStatus(context, profile, online, activeRide)
+            delay(30_000)
+        }
+    }
+
+    LaunchedEffect(operational.kind, online) {
+        if (online && operational.kind == AvailabilityKind.Restricao) {
+            onToggleOnline(false)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -519,35 +591,71 @@ private fun HomeContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        DriverHeader(profile, online, onToggleOnline)
+        DriverHeader(
+            profile = profile,
+            stats = stats,
+            operational = operational,
+            onStatusClick = {
+                if (operational.kind == AvailabilityKind.Restricao) {
+                    if (online) onToggleOnline(false)
+                } else {
+                    onToggleOnline(!online)
+                }
+            }
+        )
         if (error.isNotBlank()) StatusMessage(error, true)
         EarningsStrip(stats)
         when {
             activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
             pendingRide != null && online -> IncomingRideCard(pendingRide, onAccept, onReject, onExpire)
-            online -> WaitingCard()
-            else -> OfflineCard()
+            operational.kind == AvailabilityKind.Disponivel -> WaitingCard(operational)
+            operational.kind == AvailabilityKind.Restricao -> RestrictionCard(operational)
+            else -> OfflineCard(operational)
         }
         Spacer(Modifier.height(10.dp))
     }
 }
 
 @Composable
-private fun DriverHeader(profile: DriverProfile, online: Boolean, onToggleOnline: (Boolean) -> Unit) {
+private fun DriverHeader(
+    profile: DriverProfile,
+    stats: DriverStats,
+    operational: OperationalStatus,
+    onStatusClick: () -> Unit
+) {
     GlassCard(padding = 16) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(profile.name)
+            Avatar(profile.name, profile.photoUrl)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Olá, ${profile.name.shortName()}", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (online) "ON" else "OFF", color = if (online) Lime else Muted2, fontSize = 13.sp, fontWeight = FontWeight.Black)
+                Text(
+                    "Olá, ${profile.name.shortName()}",
+                    color = Ink,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontFamily = AppFont
+                )
+                Text(
+                    operational.message.ifBlank { "Hoje ${DriverRepository.formatCurrency(stats.totalToday)}" },
+                    color = if (operational.kind == AvailabilityKind.Restricao) Danger else if (operational.kind == AvailabilityKind.Disponivel) Lime else Muted2,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontFamily = AppFont
+                )
             }
-            Switch(checked = online, onCheckedChange = onToggleOnline)
         }
         Spacer(Modifier.height(14.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatusPill(if (online) "ONLINE" else "OFF", online, Modifier.weight(1f))
-            StatusPill("Hoje ${DriverRepository.formatCurrency(0.0)}", true, Modifier.weight(1f))
+        Button(
+            onClick = onStatusClick,
+            modifier = Modifier.fillMaxWidth().height(58.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = operational.buttonColor, contentColor = operational.textColor)
+        ) {
+            Text(operational.label, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
         }
     }
 }
@@ -562,27 +670,42 @@ private fun EarningsStrip(stats: DriverStats) {
 }
 
 @Composable
-private fun OfflineCard() {
+private fun OfflineCard(status: OperationalStatus) {
     GlassCard(padding = 18) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("OFF", color = Muted2, fontSize = 34.sp, fontWeight = FontWeight.Black)
-                Text("Toque no status para ficar disponível", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Indisponível", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(status.message.ifBlank { "Toque no botão acima para ficar disponível" }, color = Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
             }
-            StatusPill("SEM ROTA", false)
+            Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF25222B)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Circle, contentDescription = null, tint = Muted2, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun WaitingCard() {
-    GlassCard(padding = 18) {
+private fun RestrictionCard(status: OperationalStatus) {
+    GlassCard(padding = 18, borderColor = Danger.copy(alpha = .35f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Aguardando corridas", color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Black)
-                Text("Online e pronto", color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                Text("Restrição ativa", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(status.message, color = Danger, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
             }
-            PulsingDot()
+            RadarPulse(Danger, slow = true)
+        }
+    }
+}
+
+@Composable
+private fun WaitingCard(status: OperationalStatus) {
+    GlassCard(padding = 18, borderColor = Lime.copy(alpha = .30f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Aguardando corridas", color = Ink, fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(status.message.ifBlank { "Disponível para receber pedidos" }, color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            }
+            RadarPulse(Lime, slow = false)
         }
     }
 }
@@ -745,27 +868,83 @@ private fun RideFinancialPanel(ride: DriverRide, compact: Boolean) {
 
 private fun moneyOrDash(value: Double): String = if (value > 0.0) DriverRepository.formatCurrency(value) else "—"
 
+
 @Composable
-private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history: List<DriverHistory>) {
+private fun RidesContent(
+    pendingRide: DriverRide?,
+    activeRide: DriverRide?,
+    online: Boolean,
+    onAccept: (DriverRide) -> Unit,
+    onReject: (DriverRide, String) -> Unit,
+    onExpire: (DriverRide) -> Unit,
+    onUpdateRide: (DriverRide, String) -> Unit,
+    onOpenNavigator: (pickup: String, dropoff: String) -> Unit
+) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         GlassCard(padding = 18) {
-            Text("Meus ganhos", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black)
-            Text("Resumo financeiro do entregador", color = Muted, fontSize = 14.sp)
+            Text("Corridas", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text("Oferta recebida, rota ativa e operação em andamento.", color = Muted, fontSize = 14.sp, fontFamily = AppFont)
+        }
+        when {
+            activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
+            pendingRide != null && online -> IncomingRideCard(pendingRide, onAccept, onReject, onExpire)
+            online -> WaitingCard(OperationalStatus(AvailabilityKind.Disponivel, "Disponível", "Disponível para receber pedidos", Lime, Color(0xFF10200A), true))
+            else -> OfflineCard(OperationalStatus(AvailabilityKind.Indisponivel, "Indisponível", "Fique disponível para receber corridas", Color(0xFF232129), Ink, true))
+        }
+    }
+}
+
+@Composable
+private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history: List<DriverHistory>) {
+    var visible by remember { mutableStateOf(true) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        GlassCard(padding = 18) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Meus ganhos", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    Text("Resumo financeiro do entregador", color = Muted, fontSize = 14.sp, fontFamily = AppFont)
+                }
+                TextButton(onClick = { visible = !visible }) {
+                    Icon(
+                        if (visible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                        contentDescription = if (visible) "Ocultar valores" else "Mostrar valores",
+                        tint = Muted,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
             Spacer(Modifier.height(18.dp))
-            Text(DriverRepository.formatCurrency(stats.totalToday), color = Ink, fontSize = 46.sp, fontWeight = FontWeight.Black)
-            Text("Hoje • ${stats.finishedCount} corridas finalizadas", color = Lime, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            MoneyText(DriverRepository.formatCurrency(stats.totalToday), visible, 46)
+            Text("Hoje • ${stats.finishedCount} corridas finalizadas", color = Lime, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MiniStat("Semana", DriverRepository.formatCurrency(stats.totalWeek), Modifier.weight(1f))
-            MiniStat("Mês", DriverRepository.formatCurrency(stats.totalMonth), Modifier.weight(1f))
+            MiniStat("Semana", if (visible) DriverRepository.formatCurrency(stats.totalWeek) else "R$ •••••", Modifier.weight(1f))
+            MiniStat("Mês", if (visible) DriverRepository.formatCurrency(stats.totalMonth) else "R$ •••••", Modifier.weight(1f))
         }
         GlassCard(padding = 16) {
-            Text("Próximo repasse", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Pix: ${profile.pixKey.ifBlank { "não cadastrado" }}", color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("Banco: ${profile.bankName.ifBlank { "não informado" }}", color = Muted2, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Próximo repasse", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    Text(if (visible) "Pix: ${profile.pixKey.ifBlank { "não cadastrado" }}" else "Pix: •••••", color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
+                    Text(if (visible) "Banco: ${profile.bankName.ifBlank { "não informado" }}" else "Banco: •••••", color = Muted2, fontSize = 13.sp, fontFamily = AppFont)
+                }
+            }
         }
         HistoryContent(history, embedded = true)
     }
+}
+
+@Composable
+private fun MoneyText(value: String, visible: Boolean, fontSize: Int) {
+    Text(
+        if (visible) value else "R$ •••••",
+        color = Ink,
+        fontSize = fontSize.sp,
+        fontWeight = FontWeight.Black,
+        fontFamily = AppFont,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable
@@ -802,7 +981,16 @@ private fun HistoryRow(item: DriverHistory) {
 }
 
 @Composable
-private fun AccountContent(profile: DriverProfile, online: Boolean, onProfileChanged: () -> Unit, onLogout: () -> Unit) {
+private fun AccountContent(
+    profile: DriverProfile,
+    online: Boolean,
+    onProfileChanged: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenLocationSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
+    onLogout: () -> Unit
+) {
     val context = LocalContext.current
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -817,11 +1005,11 @@ private fun AccountContent(profile: DriverProfile, online: Boolean, onProfileCha
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         GlassCard(padding = 18) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(profile.name)
+                Avatar(profile.name, profile.photoUrl)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(profile.name, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Verificado profissional", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(profile.name, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
+                    Text("Verificado profissional", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -925,8 +1113,98 @@ private fun AccountContent(profile: DriverProfile, online: Boolean, onProfileCha
             ) { Text("Enviar solicitação", color = Muted) }
         }
 
+        SettingsCenterContent(
+            onOpenNotificationSettings = onOpenNotificationSettings,
+            onOpenLocationSettings = onOpenLocationSettings,
+            onOpenFullScreenSettings = onOpenFullScreenSettings,
+            onOpenBatterySettings = onOpenBatterySettings
+        )
+
         if (localError.isNotBlank()) StatusMessage(localError, true)
         if (message.isNotBlank()) StatusMessage(message, false)
+    }
+}
+
+
+@Composable
+private fun SettingsCenterContent(
+    onOpenNotificationSettings: () -> Unit,
+    onOpenLocationSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit
+) {
+    val context = LocalContext.current
+    var navPreference by remember { mutableStateOf(AppSettings.getNavigationApp(context)) }
+    var permissionStatus by remember { mutableStateOf(PermissionStatusReader.read(context)) }
+
+    GlassCard(padding = 18) {
+        SectionTitle("Ajustes", "Central organizada do app.")
+        Spacer(Modifier.height(14.dp))
+        SettingsSection("Configurações") {
+            SettingButton("Navegação", "Atual: ${AppSettings.navigationLabel(navPreference)}")
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ModeButton("Celular", navPreference == AppSettings.NAV_AUTO, Modifier.weight(1f)) { navPreference = AppSettings.NAV_AUTO; AppSettings.setNavigationApp(context, navPreference) }
+                ModeButton("Maps", navPreference == AppSettings.NAV_GOOGLE, Modifier.weight(1f)) { navPreference = AppSettings.NAV_GOOGLE; AppSettings.setNavigationApp(context, navPreference) }
+                ModeButton("Waze", navPreference == AppSettings.NAV_WAZE, Modifier.weight(1f)) { navPreference = AppSettings.NAV_WAZE; AppSettings.setNavigationApp(context, navPreference) }
+            }
+            Spacer(Modifier.height(10.dp))
+            PermissionRow("Notificações urgentes", permissionStatus.notifications) { onOpenNotificationSettings() }
+            PermissionRow("Localização", permissionStatus.location) { onOpenLocationSettings() }
+            PermissionRow("Tela cheia urgente", permissionStatus.fullScreenIntent) { onOpenFullScreenSettings() }
+            PermissionRow("Bateria sem restrição", permissionStatus.batteryUnrestricted) { onOpenBatterySettings() }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = { permissionStatus = PermissionStatusReader.read(context) },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (permissionStatus.ready) Lime else Purple, contentColor = if (permissionStatus.ready) Color(0xFF10200A) else Color.White)
+            ) { Text(if (permissionStatus.ready) "Permissões prontas" else "Atualizar permissões", fontWeight = FontWeight.Black, fontFamily = AppFont) }
+        }
+        SettingsSection("Financeiro") {
+            SettingButton("Meu repasse", "Ganhos e próximo acerto")
+            SettingButton("Acertos com a loja", "Valores recebidos e repassados")
+            SettingButton("Pix e banco", "Dados de recebimento")
+        }
+        SettingsSection("Conta") {
+            SettingButton("Dados pessoais", "Telefone/e-mail via solicitação")
+            SettingButton("Veículo", "Placa, modalidade e documentos")
+            SettingButton("Solicitar alteração", "Envia pedido ao gestor")
+        }
+        SettingsSection("Suporte") {
+            SettingButton("Ajuda", "Dúvidas de operação")
+            SettingButton("Falar com suporte", "Contato com a gestão")
+            SettingButton("Problemas com corrida", "Relatar ocorrência")
+        }
+        SettingsSection("Sobre") {
+            SettingButton("Versão do app", "5.3.0 produto nativo")
+            SettingButton("Termos e privacidade", "Documentos do app")
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Spacer(Modifier.height(14.dp))
+    Text(title, color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+    Spacer(Modifier.height(8.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+}
+
+@Composable
+private fun SettingButton(title: String, subtitle: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = .06f))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(subtitle, color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+        }
     }
 }
 
@@ -940,7 +1218,6 @@ private fun MoreContent(
     val context = LocalContext.current
     var navPreference by remember { mutableStateOf(AppSettings.getNavigationApp(context)) }
     var permissionStatus by remember { mutableStateOf(PermissionStatusReader.read(context)) }
-    var devMode by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         GlassCard(padding = 18) {
@@ -981,23 +1258,10 @@ private fun MoreContent(
             InfoLine("Segurança", "Use capacete e atenção na rota")
         }
 
-        GlassCard(padding = 18) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Modo desenvolvedor", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("Ferramentas escondidas. Não aparece como simulação para motoboy.", color = Muted2, fontSize = 12.sp)
-                }
-                Switch(checked = devMode, onCheckedChange = { devMode = it })
-            }
-            if (devMode) {
-                Spacer(Modifier.height(12.dp))
-                StatusMessage("Modo teste interno liberado somente para desenvolvimento.", false)
-            }
-        }
 
         GlassCard(padding = 18) {
             Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 5.2.0 • RC produto nativo", color = Muted2, fontSize = 12.sp)
+            Text("Versão 5.3.0 • produto nativo", color = Muted2, fontSize = 12.sp)
         }
     }
 }
@@ -1109,16 +1373,24 @@ private fun StatusMessage(text: String, isError: Boolean) {
 }
 
 @Composable
-private fun Avatar(name: String) {
+private fun Avatar(name: String, photoUrl: String = "") {
     Box(
         Modifier
-            .size(56.dp)
+            .size(58.dp)
             .clip(CircleShape)
             .background(Brush.linearGradient(listOf(Purple, Purple2, Lime)))
             .border(2.dp, Color.White.copy(alpha = 0.20f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Text(name.trim().firstOrNull()?.uppercase() ?: "E", color = Ink, fontWeight = FontWeight.Black, fontSize = 22.sp)
+        if (photoUrl.isNotBlank()) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Foto do entregador",
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
+            )
+        } else {
+            Text(name.trim().firstOrNull()?.uppercase() ?: "E", color = Ink, fontWeight = FontWeight.Black, fontSize = 22.sp, fontFamily = AppFont)
+        }
     }
 }
 
@@ -1156,16 +1428,27 @@ private fun EmptyState(title: String, subtitle: String) {
 }
 
 @Composable
-private fun PulsingDot() {
-    Box(
-        Modifier
-            .size(56.dp)
-            .clip(CircleShape)
-            .background(LimeDark)
-            .border(2.dp, Lime.copy(alpha = .45f), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(Modifier.size(16.dp).clip(CircleShape).background(Lime))
+private fun RadarPulse(color: Color, slow: Boolean) {
+    val transition = rememberInfiniteTransition(label = "radar")
+    val pulse by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (slow) 2400 else 1700, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "radarPulse"
+    )
+    Box(Modifier.size(86.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val base = size.minDimension / 2.6f
+            drawCircle(color.copy(alpha = 0.08f * (1f - pulse)), radius = base * (0.75f + pulse), center = center)
+            drawCircle(color.copy(alpha = 0.18f * (1f - pulse)), radius = base * (0.45f + pulse * 0.55f), center = center, style = Stroke(width = 4f))
+            drawCircle(color.copy(alpha = 0.22f * (1f - pulse)), radius = base * (0.25f + pulse * 0.78f), center = center, style = Stroke(width = 3f))
+            drawCircle(color, radius = 11f, center = center)
+            drawCircle(Color.White.copy(alpha = .28f), radius = 4f, center = Offset(center.x + 4f, center.y - 4f))
+        }
     }
 }
 
@@ -1240,6 +1523,69 @@ private fun InfoLine(label: String, value: String) {
         Text(label, color = Muted2, fontSize = 13.sp, modifier = Modifier.weight(1f))
         Text(value, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+
+private fun readOperationalStatus(context: Context, profile: DriverProfile, online: Boolean, activeRide: DriverRide?): OperationalStatus {
+    if (activeRide != null) {
+        return OperationalStatus(AvailabilityKind.EmEntrega, "Em entrega", "Corrida em andamento", Purple, Ink, false)
+    }
+    if (profile.blocked) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Conta bloqueada", Danger, Color.White, false)
+    }
+    if (!profile.approved) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Cadastro em análise", Danger, Color.White, false)
+    }
+
+    val batteryLevel = context.batteryLevelPercent()
+    if (batteryLevel in 0..9) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Bateria baixa", Danger, Color.White, false)
+    }
+    if (!context.hasUsableInternet()) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Sem conexão", Danger, Color.White, false)
+    }
+    if (!context.isLocationEnabled()) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Ative a localização", Danger, Color.White, false)
+    }
+
+    val permissions = PermissionStatusReader.read(context)
+    if (!permissions.location) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Permita localização", Danger, Color.White, false)
+    }
+    if (!permissions.notifications) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Ative alertas", Danger, Color.White, false)
+    }
+    if (!permissions.fullScreenIntent) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Alerta urgente pendente", Danger, Color.White, false)
+    }
+    if (!permissions.batteryUnrestricted) {
+        return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Liberar bateria", Danger, Color.White, false)
+    }
+
+    if (!online) {
+        return OperationalStatus(AvailabilityKind.Indisponivel, "Indisponível", "Toque para ficar disponível", Color(0xFF232129), Ink, true)
+    }
+
+    return OperationalStatus(AvailabilityKind.Disponivel, "Disponível", "Disponível para receber pedidos", Lime, Color(0xFF10200A), true)
+}
+
+private fun Context.batteryLevelPercent(): Int {
+    val manager = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager ?: return 100
+    return manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it >= 0 } ?: 100
+}
+
+private fun Context.hasUsableInternet(): Boolean {
+    val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+    val network = manager.activeNetwork ?: return false
+    val caps = manager.getNetworkCapabilities(network) ?: return false
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+}
+
+private fun Context.isLocationEnabled(): Boolean {
+    return runCatching {
+        val manager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        manager.isProviderEnabled(LocationManager.GPS_PROVIDER) || manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+    }.getOrDefault(false)
 }
 
 private fun String.statusLabel(): String = when {

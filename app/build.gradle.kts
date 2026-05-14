@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 54
-        versionName = "5.2.4-mapa-limpo"
+        versionCode = 55
+        versionName = "5.3.0-produto-nativo"
     }
 
     buildFeatures { compose = true }
@@ -40,6 +40,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.ui:ui-text-google-fonts:1.11.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
