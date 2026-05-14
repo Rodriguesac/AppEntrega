@@ -1,5 +1,4 @@
 <resources>
-    <color name="brand_purple">#4B0082</color>
-    <color name="brand_green">#82C91E</color>
-    <color name="brand_dark">#08050D</color>
+    <color name="purple_primary">#5B189A</color>
+    <color name="purple_dark">#2B0A45</color>
 </resources>
