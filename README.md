@@ -1,26 +1,44 @@
-# Rodrigues Entregador V4 Release Candidate
+# Rodrigues Entregador — V5.1 Recriado Nativo
 
-Versão 4.0.0 RC do app do entregador, 100% nativo em Kotlin + Jetpack Compose.
+Versão 100% nativa em Kotlin/Jetpack Compose, sem WebView e sem Capacitor.
 
-## Incluído
+## O que mudou nesta versão
 
-- Login nativo por CPF/telefone com senha quando existir no cadastro.
-- Cadastro nativo de entregador, nascendo pendente para aprovação no painel gestor.
-- Sessão salva no aparelho.
-- Busca no schema real do gestor: `entregadores`, `rotas_entrega`, `pedidos`, `historicoEntregador`.
-- Status online/offline gravado no Firebase.
-- Token FCM salvo no cadastro do entregador.
-- Escuta de pedido real em tempo real.
-- Tela de oferta, aceitar/rejeitar/expirar e finalizar corrida.
-- Alerta urgente com canal novo de notificação V4, som WAV real e vibração.
-- Navegação externa com preferência: padrão do celular, Google Maps ou Waze.
-- Histórico e ganhos básicos vindos do Firebase.
-- Conta com criação/alteração de senha e solicitação de alteração de dados ao gestor.
+- Visual recriado com direção PainelUP/Up Entregas.
+- Tema grafite premium, roxo apenas como detalhe, verde para ação/status.
+- Sem texto preto em fundo roxo.
+- Sem frases redundantes como "Você está offline".
+- Tipografia configurada para Montserrat via Google Fonts para Android.
+- Mapa real nativo dentro do app com OpenStreetMap/osmdroid.
+- Rota real usando TomTom REST quando houver endereço/coordenada suficiente.
+- Fallback de mapa com marcadores reais quando a rota não retornar.
+- Botão de navegação externa mantém Google Maps/Waze/padrão do celular.
+- Login/cadastro/pedidos seguem o schema real do gestor.
 
-## Antes de enviar para motoboys
+## Aplicar no projeto
 
-1. Gerar APK pelo GitHub Actions.
-2. Instalar em pelo menos dois celulares Android.
-3. Testar login, online/offline, pedido aberto, app em segundo plano e tela bloqueada.
-4. No Android, verificar se o canal "Nova corrida" está com som ativo.
+Copie o conteúdo deste ZIP para:
 
+```bat
+C:\RSITE\rodrigues-entregador-nativo
+```
+
+Depois rode:
+
+```bat
+APLICAR_V5_1_RECRIADO_NATIVO_WINDOWS.bat
+```
+
+## Teste recomendado
+
+1. Gerar APK no GitHub Actions.
+2. Instalar no celular.
+3. Fazer login com entregador aprovado.
+4. Ficar online.
+5. Criar pedido/rota pelo gestor.
+6. Conferir som, tela urgente, card da corrida e mapa real.
+7. Aceitar, iniciar navegação e finalizar.
+
+## Observação importante
+
+O mapa usa tiles OpenStreetMap e rota/geocoding TomTom com a chave do projeto. Se o documento da corrida já tiver latitude/longitude, o mapa abre mais rápido e mais preciso. Se tiver só endereço, o app tenta geocodificar pelo TomTom.

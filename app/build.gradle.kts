@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 40
-        versionName = "4.0.0-rc-nativo"
+        versionCode = 51
+        versionName = "5.1.0-painelup-map-real"
     }
 
     buildFeatures { compose = true }
@@ -39,6 +39,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.11.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
@@ -47,4 +48,6 @@ dependencies {
     implementation("com.google.firebase:firebase-database")
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 }
+

@@ -42,6 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
+private val DeepTop = Color(0xFF0B0A10)
+private val DeepBottom = Color(0xFF050507)
+private val Purple = Color(0xFF6D36D9)
+private val Purple2 = Color(0xFF9B6DFF)
+private val Lime = Color(0xFF82C91E)
+private val Muted = Color(0xFFC9C6D3)
+private val Danger = Color(0xFFFF4D6D)
+
 @Composable
 fun UrgentRideScreen(
     rideId: String,
@@ -54,7 +62,7 @@ fun UrgentRideScreen(
     onReject: () -> Unit,
     onExpired: () -> Unit
 ) {
-    var seconds by remember { mutableStateOf(60) }
+    var seconds by remember(rideId) { mutableStateOf(60) }
     LaunchedEffect(rideId) {
         while (seconds > 0) {
             delay(1000)
@@ -66,47 +74,49 @@ fun UrgentRideScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF07140D), Color(0xFF062D1B), Color(0xFF05080A))))
+            .background(Brush.verticalGradient(listOf(DeepTop, DeepBottom)))
             .padding(18.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Color(0xFF083C25))
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text("NOVA CORRIDA", color = Color(0xFF58F7A5), fontSize = 13.sp, fontWeight = FontWeight.Black)
-                    }
+                    Pill("OFERTA URGENTE", Lime)
                     Spacer(Modifier.weight(1f))
-                    Countdown(seconds.toString())
+                    Countdown(seconds)
                 }
-                Spacer(Modifier.height(28.dp))
-                Text("Aceitar a rota?", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
-                Text(value, color = Color.White, fontSize = 58.sp, fontWeight = FontWeight.Black)
-                Text("$distance • $duration", color = Color(0xFFD7EFE2), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(24.dp))
+                Text("Nova corrida", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Black)
+                Text(value, color = Color.White, fontSize = 60.sp, fontWeight = FontWeight.Black)
+                Text("$distance • $duration", color = Muted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
 
             Card(
                 shape = RoundedCornerShape(34.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                modifier = Modifier.fillMaxWidth()
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = .08f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(34.dp))
             ) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    RoutePreview()
-                    RouteLine("COLETA", pickup, Color(0xFF078244))
-                    RouteLine("ENTREGA", dropoff, Color(0xFFE90045))
+                    RealDeliveryMap(
+                        title = "Mapa real da oferta",
+                        subtitle = "$distance • $duration",
+                        pickupAddress = pickup,
+                        dropoffAddress = dropoff.ifBlank { "Campo Grande, MS" },
+                        modifier = Modifier.height(190.dp)
+                    )
+                    RouteLine("COLETA", pickup, Lime)
+                    RouteLine("ENTREGA", dropoff.ifBlank { "Bairro da entrega" }, Purple2)
+                    Text("Endereço completo da entrega liberado após aceite.", color = Muted, fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f).height(60.dp), shape = RoundedCornerShape(18.dp)) {
-                            Text("Rejeitar", fontWeight = FontWeight.Bold, color = Color(0xFFE90045))
+                            Text("Recusar", fontWeight = FontWeight.Bold, color = Danger)
                         }
-                        Button(onClick = onAccept, modifier = Modifier.weight(1.45f).height(60.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF078244))) {
+                        Button(onClick = onAccept, modifier = Modifier.weight(1.45f).height(60.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Color(0xFF10200A))) {
                             Text("Aceitar", fontSize = 18.sp, fontWeight = FontWeight.Black)
                         }
                     }
-                    Text("ID: $rideId", color = Color(0xFF86798E), fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    Text("Pedido #${rideId.takeLast(6).uppercase()}", color = Color(0xFF95899E), fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 }
             }
         }
@@ -114,43 +124,25 @@ fun UrgentRideScreen(
 }
 
 @Composable
-private fun Countdown(text: String) {
+private fun Pill(text: String, color: Color) {
+    Box(Modifier.clip(RoundedCornerShape(999.dp)).background(color.copy(alpha = .16f)).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Black)
+    }
+}
+
+@Composable
+private fun Countdown(seconds: Int) {
     Box(
         modifier = Modifier
             .size(76.dp)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.10f))
-            .border(6.dp, Color.White, CircleShape),
+            .border(6.dp, if (seconds <= 10) Danger else Lime, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black)
-    }
-}
-
-@Composable
-private fun RoutePreview() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(160.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFFF4F6F5), Color(0xFFE9EEEC))))
-            .border(1.dp, Color(0xFFE0E2E0), RoundedCornerShape(24.dp))
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val grid = Color(0xFFBFC8C5).copy(alpha = 0.55f)
-            for (i in 0..6) {
-                val y = size.height * i / 6f
-                drawLine(grid, Offset(0f, y), Offset(size.width, y + 28f), strokeWidth = 2f)
-            }
-            for (i in 0..5) {
-                val x = size.width * i / 5f
-                drawLine(grid, Offset(x, 0f), Offset(x - 45f, size.height), strokeWidth = 2f)
-            }
-            drawLine(Color(0xFFE90045), Offset(size.width * .18f, size.height * .70f), Offset(size.width * .82f, size.height * .35f), strokeWidth = 8f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 12f), 0f))
-        }
-        Box(Modifier.align(Alignment.Center).clip(RoundedCornerShape(16.dp)).background(Color.White).padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Text("Preview nativo da rota", color = Color(0xFF222222), fontWeight = FontWeight.Black)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(seconds.toString(), color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black)
+            Text("seg", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -160,9 +152,9 @@ private fun RouteLine(label: String, value: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(12.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(10.dp))
-        Column {
-            Text(label, color = Color(0xFF7A707F), fontSize = 12.sp, fontWeight = FontWeight.Black)
-            Text(value, color = Color(0xFF171219), fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f)) {
+            Text(label, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            Text(value, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

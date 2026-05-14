@@ -21,6 +21,9 @@ object DriverRepository {
     private const val KEY_PHONE = "driver_phone"
     private const val KEY_PHOTO = "driver_photo"
     private const val KEY_COLLECTION = "driver_collection"
+    private const val KEY_PIX = "driver_pix"
+    private const val KEY_BANK = "driver_bank"
+    private const val KEY_NEEDS_PASSWORD = "driver_needs_password"
 
     private const val REAL_DRIVER_COLLECTION = "entregadores"
     private val DRIVER_COLLECTIONS = listOf("entregadores", "drivers", "motoboys", "deliveryDrivers", "couriers")
@@ -37,6 +40,9 @@ object DriverRepository {
             phone = prefs.getString(KEY_PHONE, null).orEmpty(),
             photoUrl = prefs.getString(KEY_PHOTO, null).orEmpty(),
             collectionName = prefs.getString(KEY_COLLECTION, null).orEmpty().ifBlank { REAL_DRIVER_COLLECTION },
+            pixKey = prefs.getString(KEY_PIX, null).orEmpty(),
+            bankName = prefs.getString(KEY_BANK, null).orEmpty(),
+            needsPasswordSetup = prefs.getBoolean(KEY_NEEDS_PASSWORD, false),
             verified = true,
             approved = true,
             blocked = false
@@ -79,9 +85,9 @@ object DriverRepository {
         findDriverProfile(searchValues, onFound = { profile ->
             when {
                 profile.blocked -> onError("Entregador bloqueado/reprovado no painel gestor.")
-                !profile.approved -> onError("Cadastro encontrado, mas ainda aguardando aprovacao do gestor.")
+                !profile.approved -> onError("Cadastro encontrado, mas ainda aguardando aprovação do gestor.")
                 profile.hasPassword && !profile.passwordMatches(password) -> onError("Senha incorreta. Confira a senha cadastrada para este entregador.")
-                else -> saveSession(context, profile, onSuccess)
+                else -> saveSession(context, profile.copy(needsPasswordSetup = !profile.hasPassword), onSuccess)
             }
         }, onNotFound = {
             onError("Entregador nao encontrado. Cadastre-se ou aprove o cadastro no painel gestor.")
@@ -116,16 +122,19 @@ object DriverRepository {
             "whatsapp" to request.phone.trim(),
             "modalidade" to request.vehicle.ifBlank { "Moto" },
             "placa" to request.plate.trim().uppercase(Locale.ROOT),
+            "chavePix" to request.pixKey.trim(),
+            "pix" to request.pixKey.trim(),
+            "banco" to request.bankName.trim(),
             "statusCadastro" to "PENDENTE",
             "statusAprovacao" to "PENDENTE",
             "aprovado" to false,
             "online" to false,
-            "status" to "Aguardando aprovacao",
+            "status" to "Aguardando aprovação",
             "senhaHash" to sha256(request.password),
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "4.0.0-rc-nativo",
+            "appVersion" to "5.1.0-painelup-map-real",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -138,7 +147,7 @@ object DriverRepository {
                     payload + mapOf("tipo" to "CADASTRO_ENTREGADOR", "prioridade" to "NORMAL"),
                     SetOptions.merge()
                 ).addOnSuccessListener { onSuccess() }
-                    .addOnFailureListener { onError(it.message ?: "Cadastro salvo, mas falhou ao criar solicitacao.") }
+                    .addOnFailureListener { onError(it.message ?: "Cadastro salvo, mas falhou ao criar solicitação.") }
             }
             .addOnFailureListener { onError(it.message ?: "Falha ao enviar cadastro.") }
     }
@@ -152,7 +161,7 @@ object DriverRepository {
     ) {
         val profile = currentSession(context)
         if (profile == null) {
-            onError("Faca login antes de alterar a senha.")
+            onError("Faça login antes de alterar a senha.")
             return
         }
         if (newPassword.length < 6) {
@@ -168,11 +177,56 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "4.0.0-rc-nativo"
+                "appVersion" to "5.1.0-painelup-map-real"
             ),
             SetOptions.merge()
-        ).addOnSuccessListener { onSuccess() }
+        ).addOnSuccessListener {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean(KEY_NEEDS_PASSWORD, false)
+                .apply()
+            onSuccess()
+        }
             .addOnFailureListener { onError(it.message ?: "Falha ao salvar senha.") }
+    }
+
+    fun updatePayoutData(
+        context: Context,
+        pixKey: String,
+        bankName: String,
+        payoutType: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val profile = currentSession(context)
+        if (profile == null) {
+            onError("Faça login antes de salvar recebimento.")
+            return
+        }
+        if (pixKey.trim().length < 3) {
+            onError("Informe uma chave Pix valida.")
+            return
+        }
+        val now = Timestamp.now()
+        db.collection(profile.collectionName).document(profile.id).set(
+            mapOf(
+                "chavePix" to pixKey.trim(),
+                "pix" to pixKey.trim(),
+                "banco" to bankName.trim(),
+                "tipoRepasse" to payoutType.trim().ifBlank { "Pix" },
+                "recebimentoAtualizadoEm" to now,
+                "recebimentoStatus" to "PENDENTE_CONFERENCIA",
+                "atualizadoEm" to now,
+                "updatedAt" to now,
+                "appVersion" to "5.1.0-painelup-map-real"
+            ),
+            SetOptions.merge()
+        ).addOnSuccessListener {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(KEY_PIX, pixKey.trim())
+                .putString(KEY_BANK, bankName.trim())
+                .apply()
+            onSuccess()
+        }.addOnFailureListener { onError(it.message ?: "Falha ao salvar dados de recebimento.") }
     }
 
     fun requestProfileChange(
@@ -183,7 +237,7 @@ object DriverRepository {
     ) {
         val profile = currentSession(context)
         if (profile == null) {
-            onError("Faca login antes de solicitar alteracao.")
+            onError("Faça login antes de solicitar alteracao.")
             return
         }
         val text = requestText.trim()
@@ -202,12 +256,12 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "4.0.0-rc-nativo",
+                "appVersion" to "5.1.0-painelup-map-real",
                 "criadoEm" to now,
                 "createdAt" to now
             )
         ).addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { onError(it.message ?: "Falha ao enviar solicitacao.") }
+            .addOnFailureListener { onError(it.message ?: "Falha ao enviar solicitação.") }
     }
 
     private fun buildSearchValues(raw: String, normalized: String): List<String> {
@@ -294,6 +348,9 @@ object DriverRepository {
             .putString(KEY_PHONE, profile.phone)
             .putString(KEY_PHOTO, profile.photoUrl)
             .putString(KEY_COLLECTION, profile.collectionName)
+            .putString(KEY_PIX, profile.pixKey)
+            .putString(KEY_BANK, profile.bankName)
+            .putBoolean(KEY_NEEDS_PASSWORD, profile.needsPasswordSetup)
             .apply()
 
         db.collection(profile.collectionName).document(profile.id).set(
@@ -301,7 +358,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "4.0.0-rc-nativo"
+                "appVersion" to "5.1.0-painelup-map-real"
             ),
             SetOptions.merge()
         )
@@ -323,7 +380,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "4.0.0-rc-nativo"
+            "appVersion" to "5.1.0-painelup-map-real"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -454,14 +511,14 @@ object DriverRepository {
                     .filter { it.matchesDriverId(profile.id) }
                     .filter { doc -> doc.anyString("tipo", "status", "action").upperOrTrim() in FINAL_HISTORY_STATUSES }
                 val total = finished.sumOf { doc -> valueNumberFromDoc(doc) }
-                onStats(DriverStats(totalToday = total, finishedCount = finished.size, score = 100))
+                onStats(DriverStats(totalToday = total, totalWeek = total, totalMonth = total, finishedCount = finished.size, score = 100))
             }
     }
 
     fun acceptRide(context: Context, rideId: String, onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
         val profile = currentSession(context)
         if (profile == null) {
-            onError("Faca login antes de aceitar corrida.")
+            onError("Faça login antes de aceitar corrida.")
             return
         }
         findMissionDocument(rideId, onFound = { doc ->
@@ -494,14 +551,14 @@ object DriverRepository {
                 }
                 .addOnFailureListener { onError(it.message ?: "Falha ao aceitar corrida.") }
         }, onNotFound = {
-            onError("Corrida nao encontrada no Firebase.")
+            onError("Corrida nao encontrada.")
         })
     }
 
-    fun rejectRide(context: Context, rideId: String, onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
+    fun rejectRide(context: Context, rideId: String, reason: String = "", onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
         val profile = currentSession(context)
         if (profile == null) {
-            onError("Faca login antes de rejeitar corrida.")
+            onError("Faça login antes de rejeitar corrida.")
             return
         }
         findMissionDocument(rideId, onFound = { doc ->
@@ -516,6 +573,8 @@ object DriverRepository {
                 "rejeitadaEm" to Timestamp.now(),
                 "ultimaAcaoEntregador" to "REJEITADA",
                 "statusOfertaEntregador" to "REJEITADA",
+                "motivoRejeicao" to reason.trim(),
+                "rejectionReason" to reason.trim(),
                 "atualizadoEm" to Timestamp.now(),
                 "updatedAt" to Timestamp.now()
             )
@@ -530,19 +589,19 @@ object DriverRepository {
             }
             doc.reference.set(update, SetOptions.merge())
                 .addOnSuccessListener {
-                    addHistory(profile, rideId, "REJEITADA", ride?.valueNumber ?: 0.0, collectionName)
+                    addHistory(profile, rideId, if (reason.isBlank()) "REJEITADA" else "REJEITADA: $reason", ride?.valueNumber ?: 0.0, collectionName)
                     onDone()
                 }
                 .addOnFailureListener { onError(it.message ?: "Falha ao rejeitar corrida.") }
         }, onNotFound = {
-            onError("Corrida nao encontrada no Firebase.")
+            onError("Corrida nao encontrada.")
         })
     }
 
     fun expireRide(context: Context, rideId: String, onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
         val profile = currentSession(context)
         if (profile == null) {
-            onError("Faca login antes de expirar corrida.")
+            onError("Faça login antes de expirar corrida.")
             return
         }
         findMissionDocument(rideId, onFound = { doc ->
@@ -563,14 +622,14 @@ object DriverRepository {
                 onDone()
             }.addOnFailureListener { onError(it.message ?: "Falha ao expirar oferta.") }
         }, onNotFound = {
-            onError("Corrida nao encontrada no Firebase.")
+            onError("Corrida nao encontrada.")
         })
     }
 
     fun updateRideStatus(context: Context, rideId: String, status: String, onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
         val profile = currentSession(context)
         if (profile == null) {
-            onError("Faca login para atualizar a corrida.")
+            onError("Faça login para atualizar a corrida.")
             return
         }
         findMissionDocument(rideId, onFound = { doc ->
@@ -623,7 +682,7 @@ object DriverRepository {
                 }
                 .addOnFailureListener { onError(it.message ?: "Falha ao atualizar corrida.") }
         }, onNotFound = {
-            onError("Corrida nao encontrada no Firebase.")
+            onError("Corrida nao encontrada.")
         })
     }
 
@@ -667,7 +726,7 @@ object DriverRepository {
 
     private fun DocumentSnapshot.toProfile(collectionName: String): DriverProfile {
         val name = anyString("nome", "nomeCompleto", "name", "driverName", "apelido").ifBlank { "Entregador" }
-        val statusCadastro = anyString("statusCadastro", "statusAprovacao", "statusAnalise", "aprovacao").upperOrTrim()
+        val statusCadastro = anyString("statusCadastro", "statusAprovacao", "statusAnalise", "aprovação").upperOrTrim()
         val blocked = anyBoolean("bloqueado", "blocked") == true || statusCadastro in BLOCKED_STATUSES
         val approvedFlag = anyBoolean("aprovado", "approved")
         val approved = when {
@@ -682,6 +741,8 @@ object DriverRepository {
             phone = anyString("telefone", "celular", "phone", "whatsapp"),
             photoUrl = anyString("fotoPerfilUrl", "urlPerfil", "avatarUrl", "photoUrl", "avatar"),
             collectionName = collectionName,
+            pixKey = anyString("chavePix", "pix", "pixKey", "chavePIX"),
+            bankName = anyString("banco", "bank", "bankName", "instituicao"),
             verified = approved,
             approved = approved,
             blocked = blocked,
@@ -732,6 +793,9 @@ data class DriverProfile(
     val phone: String = "",
     val photoUrl: String = "",
     val collectionName: String = "entregadores",
+    val pixKey: String = "",
+    val bankName: String = "",
+    val needsPasswordSetup: Boolean = false,
     val verified: Boolean = true,
     val approved: Boolean = true,
     val blocked: Boolean = false,
@@ -760,11 +824,15 @@ data class DriverRegistrationRequest(
     val phone: String,
     val password: String,
     val vehicle: String = "Moto",
-    val plate: String = ""
+    val plate: String = "",
+    val pixKey: String = "",
+    val bankName: String = ""
 )
 
 data class DriverStats(
     val totalToday: Double = 0.0,
+    val totalWeek: Double = 0.0,
+    val totalMonth: Double = 0.0,
     val finishedCount: Int = 0,
     val score: Int = 100
 )
@@ -789,6 +857,7 @@ data class DriverRide(
     val duration: String,
     val pickup: String,
     val dropoff: String,
+    val neighborhood: String,
     val assignedDriverId: String,
     val targetDriverId: String,
     val broadcast: Boolean,
@@ -796,7 +865,11 @@ data class DriverRide(
     val orderCode: String,
     val stops: Int,
     val rejectedDriverIds: List<String>,
-    val expiredDriverIds: List<String>
+    val expiredDriverIds: List<String>,
+    val pickupLat: Double? = null,
+    val pickupLng: Double? = null,
+    val dropoffLat: Double? = null,
+    val dropoffLng: Double? = null
 ) {
     fun matchesDriver(driverId: String): Boolean {
         val ids = listOf(assignedDriverId, targetDriverId).filter { it.isNotBlank() }
@@ -850,6 +923,10 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val dropoff = anyAddressString()
     val km = anyDouble("kmTotal", "distanciaKm", "distanciaTotal", "distancia") ?: 0.0
     val minutes = anyDouble("tempoTotalMin", "tempoMin", "tempoEstimado", "tempo") ?: 0.0
+    val pickupLat = anyCoordinate("latLoja", "lojaLat", "latitudeLoja", "pickupLat", "pickupLatitude", "coletaLat", "latColeta", "origemLat")
+    val pickupLng = anyCoordinate("lngLoja", "lojaLng", "longitudeLoja", "pickupLng", "pickupLongitude", "coletaLng", "lngColeta", "origemLng", "lonLoja")
+    val dropoffLat = anyCoordinate("latEntrega", "entregaLat", "clienteLat", "dropoffLat", "dropoffLatitude", "destinationLat", "destinoLat") ?: nestedCoordinate("endereco", "lat", "latitude")
+    val dropoffLng = anyCoordinate("lngEntrega", "entregaLng", "clienteLng", "dropoffLng", "dropoffLongitude", "destinationLng", "destinoLng", "lonEntrega") ?: nestedCoordinate("endereco", "lng", "lon", "longitude")
 
     return DriverRide(
         id = id,
@@ -862,6 +939,7 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
         duration = if (minutes > 0.0) "${minutes.toInt()} min" else anyString("duration", "estimatedTime").ifBlank { "-- min" },
         pickup = pickup,
         dropoff = dropoff,
+        neighborhood = anyString("bairro", "bairroEntrega", "regiao", "neighborhood").ifBlank { "Bairro não informado" },
         assignedDriverId = assigned,
         targetDriverId = target,
         broadcast = anyBoolean("broadcast", "paraTodos", "ofertaParaTodos") ?: false,
@@ -869,7 +947,11 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
         orderCode = anyString("orderCode", "orderId", "numeroPedido", "codigoPedido").ifBlank { id.takeLast(6).uppercase() },
         stops = (anyDouble("stops", "paradas", "quantidadePedidos") ?: 2.0).toInt().coerceAtLeast(1),
         rejectedDriverIds = rejected,
-        expiredDriverIds = expired
+        expiredDriverIds = expired,
+        pickupLat = pickupLat,
+        pickupLng = pickupLng,
+        dropoffLat = dropoffLat,
+        dropoffLng = dropoffLng
     )
 }
 
@@ -907,6 +989,30 @@ private fun DocumentSnapshot.anyDouble(vararg keys: String): Double? {
         when (value) {
             is Number -> return value.toDouble()
             is String -> value.toMoneyDouble()?.let { return it }
+        }
+    }
+    return null
+}
+
+private fun DocumentSnapshot.anyCoordinate(vararg keys: String): Double? {
+    for (key in keys) {
+        val value = get(key)
+        when (value) {
+            is Number -> return value.toDouble()
+            is String -> value.replace(',', '.').trim().toDoubleOrNull()?.let { return it }
+        }
+    }
+    return null
+}
+
+private fun DocumentSnapshot.nestedCoordinate(mapKey: String, vararg keys: String): Double? {
+    val value = get(mapKey)
+    if (value !is Map<*, *>) return null
+    for (key in keys) {
+        val raw = value[key]
+        when (raw) {
+            is Number -> return raw.toDouble()
+            is String -> raw.replace(',', '.').trim().toDoubleOrNull()?.let { return it }
         }
     }
     return null
