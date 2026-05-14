@@ -149,7 +149,7 @@ object DriverRepository {
                         rideId = doc.getString("rideId") ?: "",
                         action = doc.getString("action") ?: "registro",
                         value = doc.getString("value") ?: "",
-                        createdLabel = doc.getTimestamp("createdAt")?.toDate()?.let { "%1$tH:%1$tM".format(it) } ?: "agora"
+                        createdLabel = doc.getTimestamp("createdAt")?.toDate()?.let { "%1\$tH:%1\$tM".format(it) } ?: "agora"
                     )
                 }.orEmpty().sortedByDescending { it.createdLabel }
                 onHistory(list)
