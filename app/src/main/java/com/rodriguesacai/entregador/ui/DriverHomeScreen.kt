@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.rodriguesacai.entregador.data.DriverRepository
 import com.rodriguesacai.entregador.data.DriverRide
+import com.rodriguesacai.entregador.data.DriverHistory
+import com.rodriguesacai.entregador.data.DriverStats
 
 private enum class AppTab { Inicio, Ganhos, Historico, Conta, Mais }
 private enum class OperationStage { Aguardando, Oferta, Coleta, Entrega }
@@ -45,6 +47,8 @@ fun DriverHomeScreen(
     var pendingRide by remember { mutableStateOf<DriverRide?>(null) }
     var activeRide by remember { mutableStateOf<DriverRide?>(null) }
     var firebaseError by remember { mutableStateOf<String?>(null) }
+    var history by remember { mutableStateOf<List<DriverHistory>>(emptyList()) }
+    var stats by remember { mutableStateOf(DriverStats()) }
 
     DisposableEffect(online) {
         if (!online) {
@@ -72,9 +76,13 @@ fun DriverHomeScreen(
                 },
                 onError = { firebaseError = it }
             )
+            val historyListener = DriverRepository.listenMyHistory(context, { history = it }, { firebaseError = it })
+            val statsListener = DriverRepository.listenDailyStats(context, { stats = it }, { firebaseError = it })
             onDispose {
                 pendingListener.remove()
                 activeListener.remove()
+                historyListener.remove()
+                statsListener.remove()
             }
         }
     }
@@ -113,12 +121,13 @@ fun DriverHomeScreen(
                     onStageChange = { stage = it },
                     pendingRide = pendingRide,
                     activeRide = activeRide,
-                    firebaseError = firebaseError
+                    firebaseError = firebaseError,
+                    stats = stats
                 )
-                AppTab.Ganhos -> EarningsContent()
-                AppTab.Historico -> HistoryContent(onSimulateRide)
+                AppTab.Ganhos -> EarningsContent(stats)
+                AppTab.Historico -> HistoryContent(history)
                 AppTab.Conta -> AccountContent()
-                AppTab.Mais -> MoreContent(onOpenBatterySettings)
+                AppTab.Mais -> MoreContent(onOpenBatterySettings, onSimulateRide)
             }
         }
     }
@@ -151,7 +160,8 @@ private fun HomeContent(
     onStageChange: (OperationStage) -> Unit,
     pendingRide: DriverRide?,
     activeRide: DriverRide?,
-    firebaseError: String?
+    firebaseError: String?,
+    stats: DriverStats
 ) {
     Column(
         Modifier
@@ -164,13 +174,13 @@ private fun HomeContent(
         firebaseError?.let { FirebaseStatusCard("Firebase", it) }
         OperationHero(online, stage, onToggle, onStageChange)
         when (stage) {
-            OperationStage.Aguardando -> WaitingRoutePreview(onSimulateRide)
-            OperationStage.Oferta -> IncomingRideCard(pendingRide, onSimulateRide, onStageChange)
+            OperationStage.Aguardando -> WaitingRoutePreview(online)
+            OperationStage.Oferta -> IncomingRideCard(pendingRide, onStageChange)
             OperationStage.Coleta -> PickupCard(activeRide, onOpenNavigator, onStageChange)
             OperationStage.Entrega -> DeliveryCard(activeRide, onOpenNavigator, onStageChange)
         }
-        EarningsStrip()
-        QuickActionsCard(onSimulateRide, onOpenNavigator)
+        EarningsStrip(stats)
+        QuickActionsCard(onOpenNavigator)
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -243,8 +253,8 @@ private fun stageTitle(online: Boolean, stage: OperationStage): String = if (!on
 }
 
 private fun stageSubtitle(online: Boolean, stage: OperationStage): String = if (!online) "Ative para iniciar serviço em segundo plano, GPS e alertas de nova corrida." else when (stage) {
-    OperationStage.Aguardando -> "Aguardando pedidos próximos. Tela limpa e foco total no próximo chamado."
-    OperationStage.Oferta -> "Valor, distância e tempo em destaque para decidir rápido."
+    OperationStage.Aguardando -> "Conectado ao Firebase. Próxima oferta aparece automaticamente."
+    OperationStage.Oferta -> "Oferta real recebida: aceite ou recuse para atualizar o Firebase."
     OperationStage.Coleta -> "Mostre somente o essencial: loja, chegada e navegação."
     OperationStage.Entrega -> "Cliente e ação principal ficam sempre a um toque."
 }
@@ -269,33 +279,51 @@ private fun StageChip(label: String, selected: Boolean, enabled: Boolean, modifi
 }
 
 @Composable
-private fun WaitingRoutePreview(onSimulateRide: () -> Unit) {
+private fun WaitingRoutePreview(online: Boolean) {
     PremiumCard {
-        Text("Mapa da operação", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (online) "Aguardando pedido real" else "Pronto para iniciar", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Black)
+                Text(
+                    if (online) "O app está conectado e ouvindo novas corridas no Firebase. Quando o gestor criar uma corrida pendente, a oferta aparece aqui automaticamente."
+                    else "Ative o modo online para registrar presença, salvar status e receber novas ofertas.",
+                    color = Color(0xFFD6CCDF),
+                    lineHeight = 20.sp
+                )
+            }
+            LiveDot(online)
+        }
+        Spacer(Modifier.height(14.dp))
         MapMock(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp),
-            title = "Aguardando rota",
-            subtitle = "Preview estático sem cobrir os cards"
+                .height(220.dp),
+            title = if (online) "Sem corrida ativa" else "Operação pausada",
+            subtitle = if (online) "Aguardando Firestore" else "Toque no botão online"
         )
-        Spacer(Modifier.height(12.dp))
-        Button(onClick = onSimulateRide, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE90045))) {
-            Text("Simular nova corrida", fontWeight = FontWeight.Black)
-        }
     }
 }
 
 @Composable
-private fun IncomingRideCard(ride: DriverRide?, onSimulateRide: () -> Unit, onStageChange: (OperationStage) -> Unit) {
+private fun LiveDot(active: Boolean) {
+    val bg = if (active) Color(0xFF073B26) else Color(0xFF33273B)
+    val fg = if (active) Color(0xFF42F39B) else Color(0xFFB9AFC6)
+    Surface(color = bg, shape = RoundedCornerShape(999.dp)) {
+        Text(if (active) "REAL" else "OFF", color = fg, fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+    }
+}
+
+@Composable
+private fun IncomingRideCard(ride: DriverRide?, onStageChange: (OperationStage) -> Unit) {
     val context = LocalContext.current
     PremiumCard {
         if (ride == null) {
             Text("Nenhuma oferta real agora", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
             Text("O app está ouvindo a coleção rides no Firebase com status pending.", color = Color(0xFFD6CCDF), lineHeight = 20.sp)
             Spacer(Modifier.height(12.dp))
-            OutlinedButton(onClick = onSimulateRide, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(18.dp)) { Text("Testar alerta visual") }
+            Surface(color = Color.White.copy(alpha = 0.06f), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Crie uma corrida em rides com status = pending para aparecer como oferta real.", color = Color(0xFFB9AFC6), modifier = Modifier.padding(14.dp), lineHeight = 19.sp)
+            }
             return@PremiumCard
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -417,13 +445,15 @@ private fun MiniRouteBox(label: String, value: String) {
 }
 
 @Composable
-private fun EarningsStrip() {
+private fun EarningsStrip(stats: DriverStats) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        MetricBox("Hoje", "R$ 0,00", Modifier.weight(1f))
-        MetricBox("Corridas", "0", Modifier.weight(1f))
-        MetricBox("Score", "100%", Modifier.weight(1f))
+        MetricBox("Hoje", money(stats.totalToday), Modifier.weight(1f))
+        MetricBox("Corridas", stats.finishedCount.toString(), Modifier.weight(1f))
+        MetricBox("Score", "${stats.score}%", Modifier.weight(1f))
     }
 }
+
+private fun money(value: Double): String = "R$ %.2f".format(value).replace('.', ',')
 
 @Composable
 private fun MetricBox(label: String, value: String, modifier: Modifier = Modifier) {
@@ -434,26 +464,26 @@ private fun MetricBox(label: String, value: String, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun QuickActionsCard(onSimulateRide: () -> Unit, onOpenNavigator: () -> Unit) {
+private fun QuickActionsCard(onOpenNavigator: () -> Unit) {
     PremiumCard {
         Text("Ações rápidas", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = onSimulateRide, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(18.dp)) { Text("Testar alerta") }
-            OutlinedButton(onClick = onOpenNavigator, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(18.dp)) { Text("GPS") }
+            OutlinedButton(onClick = onOpenNavigator, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(18.dp)) { Text("Abrir GPS") }
+            OutlinedButton(onClick = {}, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(18.dp), enabled = false) { Text("Sem corrida") }
         }
     }
 }
 
 @Composable
-private fun EarningsContent() {
+private fun EarningsContent(stats: DriverStats) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Ganhos", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
         PremiumCard {
             Text("Resumo do dia", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(18.dp))
-            Text("R$ 0,00", color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
-            Text("Nenhuma corrida finalizada hoje.", color = Color(0xFFB9AFC6))
+            Text(money(stats.totalToday), color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Black)
+            Text(if (stats.finishedCount == 0) "Nenhuma corrida finalizada hoje." else "${stats.finishedCount} corrida(s) finalizada(s) hoje.", color = Color(0xFFB9AFC6))
         }
         PremiumCard {
             Text("Próximo repasse", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
@@ -463,13 +493,26 @@ private fun EarningsContent() {
 }
 
 @Composable
-private fun HistoryContent(onSimulateRide: () -> Unit) {
+private fun HistoryContent(history: List<DriverHistory>) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Histórico", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
-        RideHistoryItem("Aguardando novas corridas", "Ofertas aceitas, recusadas e expiradas aparecem aqui.", "AGORA")
-        RideHistoryItem("Rejeitadas", "Registre motivo e mantenha histórico igual app profissional.", "PENDENTE")
-        Button(onClick = onSimulateRide, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE90045))) { Text("Simular corrida") }
+        if (history.isEmpty()) {
+            RideHistoryItem("Sem registros hoje", "Quando uma corrida for aceita, recusada, expirada ou finalizada, ela aparece aqui com horário e status.", "REAL")
+            RideHistoryItem("Firebase ativo", "O histórico técnico é salvo na coleção driverHistory para conferência no painel gestor.", "ONLINE")
+        } else {
+            history.forEach { item ->
+                RideHistoryItem(statusLabel(item.action), "Corrida ${item.rideId.takeLast(6)} • ${item.createdLabel}", item.value.ifBlank { "REAL" })
+            }
+        }
     }
+}
+
+private fun statusLabel(action: String): String = when (action) {
+    "accepted" -> "Corrida aceita"
+    "rejected" -> "Corrida recusada"
+    "delivering" -> "Saiu para entrega"
+    "finished" -> "Entrega finalizada"
+    else -> action
 }
 
 @Composable
@@ -508,14 +551,15 @@ private fun AccountContent() {
 }
 
 @Composable
-private fun MoreContent(onOpenBatterySettings: () -> Unit) {
+private fun MoreContent(onOpenBatterySettings: () -> Unit, onSimulateRide: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Mais", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
         SettingsRow("Navegação padrão", "Google Maps, Waze ou padrão do celular")
         SettingsRow("Notificações urgentes", "Canal full screen + alerta sonoro")
         SettingsRow("Permissões", "Localização só quando necessário")
         Button(onClick = onOpenBatterySettings, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE90045))) { Text("Abrir ajustes de bateria") }
-        Text("v1.2.0 nativo • Rodrigues Açaí e Cia", color = Color(0xFF8F839C), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        OutlinedButton(onClick = onSimulateRide, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) { Text("Modo teste: abrir alerta") }
+        Text("v1.6.0 operação real + histórico • Rodrigues Açaí e Cia", color = Color(0xFF8F839C), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 

@@ -128,6 +128,62 @@ object DriverRepository {
             .addOnFailureListener { onError(it.message ?: "Falha ao atualizar") }
     }
 
+
+    fun listenMyHistory(
+        context: Context,
+        onHistory: (List<DriverHistory>) -> Unit,
+        onError: (String) -> Unit
+    ): ListenerRegistration {
+        val id = driverId(context)
+        return db.collection("driverHistory")
+            .whereEqualTo("driverId", id)
+            .limit(20)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir histórico")
+                    return@addSnapshotListener
+                }
+                val list = snap?.documents?.map { doc ->
+                    DriverHistory(
+                        id = doc.id,
+                        rideId = doc.getString("rideId") ?: "",
+                        action = doc.getString("action") ?: "registro",
+                        value = doc.getString("value") ?: "",
+                        createdLabel = doc.getTimestamp("createdAt")?.toDate()?.let { "%1$tH:%1$tM".format(it) } ?: "agora"
+                    )
+                }.orEmpty().sortedByDescending { it.createdLabel }
+                onHistory(list)
+            }
+    }
+
+    fun listenDailyStats(
+        context: Context,
+        onStats: (DriverStats) -> Unit,
+        onError: (String) -> Unit
+    ): ListenerRegistration {
+        val id = driverId(context)
+        return db.collection("driverHistory")
+            .whereEqualTo("driverId", id)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir ganhos")
+                    return@addSnapshotListener
+                }
+                val docs = snap?.documents.orEmpty()
+                val finished = docs.filter { it.getString("action") == "finished" }
+                val count = finished.size
+                val total = finished.sumOf { doc ->
+                    doc.getDouble("valueNumber") ?: doc.getString("value")
+                        ?.replace("R$", "")
+                        ?.replace(".", "")
+                        ?.replace(",", ".")
+                        ?.trim()
+                        ?.toDoubleOrNull() ?: 0.0
+                }
+                onStats(DriverStats(total, count, 100))
+            }
+    }
+
     private fun addHistory(context: Context, rideId: String, action: String) {
         val id = driverId(context)
         db.collection("driverHistory").add(
@@ -135,11 +191,27 @@ object DriverRepository {
                 "driverId" to id,
                 "rideId" to rideId,
                 "action" to action,
+                "value" to "",
+                "valueNumber" to 0.0,
                 "createdAt" to Timestamp.now()
             )
         )
     }
 }
+
+data class DriverStats(
+    val totalToday: Double = 0.0,
+    val finishedCount: Int = 0,
+    val score: Int = 100
+)
+
+data class DriverHistory(
+    val id: String,
+    val rideId: String,
+    val action: String,
+    val value: String,
+    val createdLabel: String
+)
 
 data class DriverRide(
     val id: String,

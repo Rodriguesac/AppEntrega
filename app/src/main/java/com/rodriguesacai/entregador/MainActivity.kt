@@ -10,6 +10,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.font.FontFamily
 import com.rodriguesacai.entregador.data.DriverRepository
 import com.rodriguesacai.entregador.service.OnlineDriverService
 import com.rodriguesacai.entregador.ui.DriverHomeScreen
@@ -23,20 +26,42 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         askBasicPermissions()
         setContent {
-            DriverHomeScreen(
-                onGoOnline = {
-                    DriverRepository.setOnline(this, true)
-                    startOnlineService()
-                },
-                onGoOffline = {
-                    DriverRepository.setOnline(this, false)
-                    stopService(Intent(this, OnlineDriverService::class.java))
-                },
-                onOpenNavigator = { openNavigator() },
-                onOpenBatterySettings = { openBatterySettings() },
-                onSimulateRide = { openSimulatedRide() },
-                driverId = DriverRepository.driverId(this)
-            )
+            MaterialTheme(
+                typography = Typography().run {
+                    copy(
+                        displayLarge = displayLarge.copy(fontFamily = FontFamily.SansSerif),
+                        displayMedium = displayMedium.copy(fontFamily = FontFamily.SansSerif),
+                        displaySmall = displaySmall.copy(fontFamily = FontFamily.SansSerif),
+                        headlineLarge = headlineLarge.copy(fontFamily = FontFamily.SansSerif),
+                        headlineMedium = headlineMedium.copy(fontFamily = FontFamily.SansSerif),
+                        headlineSmall = headlineSmall.copy(fontFamily = FontFamily.SansSerif),
+                        titleLarge = titleLarge.copy(fontFamily = FontFamily.SansSerif),
+                        titleMedium = titleMedium.copy(fontFamily = FontFamily.SansSerif),
+                        titleSmall = titleSmall.copy(fontFamily = FontFamily.SansSerif),
+                        bodyLarge = bodyLarge.copy(fontFamily = FontFamily.SansSerif),
+                        bodyMedium = bodyMedium.copy(fontFamily = FontFamily.SansSerif),
+                        bodySmall = bodySmall.copy(fontFamily = FontFamily.SansSerif),
+                        labelLarge = labelLarge.copy(fontFamily = FontFamily.SansSerif),
+                        labelMedium = labelMedium.copy(fontFamily = FontFamily.SansSerif),
+                        labelSmall = labelSmall.copy(fontFamily = FontFamily.SansSerif)
+                    )
+                }
+            ) {
+                DriverHomeScreen(
+                    onGoOnline = {
+                        DriverRepository.setOnline(this, true)
+                        startOnlineService()
+                    },
+                    onGoOffline = {
+                        DriverRepository.setOnline(this, false)
+                        stopService(Intent(this, OnlineDriverService::class.java))
+                    },
+                    onOpenNavigator = { openNavigator() },
+                    onOpenBatterySettings = { openBatterySettings() },
+                    onSimulateRide = { openSimulatedRide() },
+                    driverId = DriverRepository.driverId(this)
+                )
+            }
         }
     }
 
