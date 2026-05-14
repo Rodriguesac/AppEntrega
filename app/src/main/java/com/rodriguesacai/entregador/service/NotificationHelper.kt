@@ -16,7 +16,7 @@ import com.rodriguesacai.entregador.UrgentRideActivity
 
 object NotificationHelper {
     const val CHANNEL_ONLINE = "driver_online"
-    const val CHANNEL_URGENT = "urgent_ride"
+    const val CHANNEL_URGENT = "urgent_ride_v31"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -77,6 +77,9 @@ object NotificationHelper {
         pickup: String,
         dropoff: String
     ) {
+        val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.alerta}")
+        AppAlertPlayer.playNewRide(context)
+
         val fullScreenIntent = Intent(context, UrgentRideActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("rideId", rideId)
@@ -102,6 +105,8 @@ object NotificationHelper {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setSound(soundUri)
+            .setVibrate(longArrayOf(0, 500, 200, 500, 200, 700))
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

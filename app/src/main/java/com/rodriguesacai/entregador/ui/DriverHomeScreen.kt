@@ -62,6 +62,7 @@ import com.rodriguesacai.entregador.data.DriverProfile
 import com.rodriguesacai.entregador.data.DriverRepository
 import com.rodriguesacai.entregador.data.DriverRide
 import com.rodriguesacai.entregador.data.DriverStats
+import com.rodriguesacai.entregador.service.AppAlertPlayer
 
 private enum class AppTab { Inicio, Ganhos, Historico, Conta, Mais }
 
@@ -100,6 +101,12 @@ fun DriverHomeScreen(
             activeListener?.remove()
             historyListener?.remove()
             statsListener?.remove()
+        }
+    }
+
+    LaunchedEffect(pendingRide?.id, online) {
+        if (online && pendingRide != null) {
+            AppAlertPlayer.playNewRide(context)
         }
     }
 
@@ -229,7 +236,7 @@ private fun LoginScreen(error: String, onLogin: (String, (Boolean) -> Unit) -> U
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "Nenhum entregador fake é usado. O nome, telefone e permissão vêm da coleção drivers no Firebase.",
+                "Nenhum entregador fake é usado. O nome, telefone e permissão vêm da coleção entregadores no Firebase.",
                 color = Color(0xFF9D91A8),
                 fontSize = 12.sp
             )
@@ -366,7 +373,7 @@ private fun WaitingRealRideCard() {
         Text("Aguardando pedido real", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Text("Sem botão de simulação na tela principal. Quando o painel criar uma corrida pendente, ela aparece aqui automaticamente.", color = Color(0xFFD7CCDF), fontSize = 14.sp)
         Spacer(Modifier.height(14.dp))
-        NativeRoutePreview("Radar de entregas", "O app está ouvindo rides/status=pending")
+        NativeRoutePreview("Radar de entregas", "O app esta ouvindo rotas_entrega/pedidos em tempo real")
     }
 }
 
@@ -384,6 +391,8 @@ private fun IncomingRideCard(ride: DriverRide, onAccept: (DriverRide) -> Unit, o
         Spacer(Modifier.height(12.dp))
         StopLine("COLETA", ride.pickup, Color(0xFF078244))
         StopLine("ENTREGA", ride.dropoff, Color(0xFFE90045))
+        Spacer(Modifier.height(12.dp))
+        NativeRoutePreview("Previa da rota", "${ride.distance} • ${ride.duration} • ${ride.stops} paradas")
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { onReject(ride) }, modifier = Modifier.weight(1f).height(58.dp), shape = RoundedCornerShape(18.dp)) { Text("Rejeitar") }
@@ -499,7 +508,7 @@ private fun MoreContent(onOpenBatterySettings: () -> Unit) {
             Text("Configurações operacionais do app nativo", color = Color(0xFFD7CCDF), fontSize = 14.sp)
             Spacer(Modifier.height(14.dp))
             TextButton(onClick = onOpenBatterySettings, modifier = Modifier.fillMaxWidth()) { Text("Abrir ajustes de bateria/permissões") }
-            Text("Versão 3.0.0 nativo • sem WebView • sem Capacitor • sem assets de web app", color = Color(0xFF9D91A8), fontSize = 12.sp)
+            Text("Versao 3.1.0 nativo • som real • alerta urgente • sem WebView", color = Color(0xFF9D91A8), fontSize = 12.sp)
         }
     }
 }
