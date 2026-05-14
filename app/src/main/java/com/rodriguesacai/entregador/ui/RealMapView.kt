@@ -1,21 +1,24 @@
 package com.rodriguesacai.entregador.ui
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.view.MotionEvent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,15 +29,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.osmdroid.config.Configuration
@@ -49,20 +57,32 @@ import java.net.URLEncoder
 import kotlin.math.abs
 
 private const val TOMTOM_API_KEY = "tmsKTjnNOPUHNDHOYh2m12VrmwejmK8t"
+private const val ROUTE_REFRESH_MS = 30_000L
 
 private val MapPanel = Color(0xFF0E1117)
-private val MapPanel2 = Color(0xFF151A22)
-private val MapPurple = Color(0xFF7C4DFF)
 private val MapGreen = Color(0xFF82C91E)
-private val MapText = Color.White
-private val MapMuted = Color(0xFFC8CDD6)
+private val MapPurple = Color(0xFF7C4DFF)
+private val MapBlue = Color(0xFF1684FF)
+
+/**
+ * Modo da rota exibida no mapa.
+ * PICKUP_TO_DROPOFF: usado na oferta/preview geral.
+ * DRIVER_TO_PICKUP: usado antes de retirar pedido, rota do motoboy até a loja.
+ * DRIVER_TO_DROPOFF: usado depois de retirar pedido, rota do motoboy até o cliente.
+ */
+enum class DeliveryMapMode {
+    PICKUP_TO_DROPOFF,
+    DRIVER_TO_PICKUP,
+    DRIVER_TO_DROPOFF
+}
 
 private data class RouteMapState(
+    val driver: GeoPoint? = null,
     val pickup: GeoPoint? = null,
     val dropoff: GeoPoint? = null,
     val route: List<GeoPoint> = emptyList(),
     val loading: Boolean = true,
-    val label: String = "Carregando mapa real"
+    val updatedAtMillis: Long = 0L
 )
 
 @Composable
@@ -75,17 +95,31 @@ fun RealDeliveryMap(
     pickupLng: Double? = null,
     dropoffLat: Double? = null,
     dropoffLng: Double? = null,
+    mode: DeliveryMapMode = DeliveryMapMode.PICKUP_TO_DROPOFF,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var state by remember(pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng) {
+    var state by remember(pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng, mode) {
         mutableStateOf(RouteMapState())
     }
+    var fullscreen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng) {
-        state = RouteMapState(loading = true)
-        state = withContext(Dispatchers.IO) {
-            buildRouteMapState(pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng)
+    LaunchedEffect(pickupAddress, dropoffAddress, pickupLat, pickupLng, dropoffLat, dropoffLng, mode) {
+        while (true) {
+            state = state.copy(loading = true)
+            state = withContext(Dispatchers.IO) {
+                buildRouteMapState(
+                    context = context,
+                    pickupAddress = pickupAddress,
+                    dropoffAddress = dropoffAddress,
+                    pickupLat = pickupLat,
+                    pickupLng = pickupLng,
+                    dropoffLat = dropoffLat,
+                    dropoffLng = dropoffLng,
+                    mode = mode
+                )
+            }
+            delay(ROUTE_REFRESH_MS)
         }
     }
 
@@ -94,21 +128,99 @@ fun RealDeliveryMap(
             .fillMaxWidth()
             .height(245.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(Brush.linearGradient(listOf(MapPanel2, MapPanel)))
+            .background(MapPanel)
             .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(26.dp))
     ) {
-        AndroidView(
+        CleanOsmMap(
+            state = state,
             modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-                Configuration.getInstance().userAgentValue = ctx.packageName
-                MapView(ctx).apply {
-                    setTileSource(TileSourceFactory.MAPNIK)
-                    setMultiTouchControls(true)
-                    minZoomLevel = 4.0
-                    maxZoomLevel = 20.0
-                    controller.setZoom(14.5)
-                    controller.setCenter(GeoPoint(-20.4697, -54.6201))
+            tapOpensFullscreen = true,
+            onTapMap = { fullscreen = true }
+        )
+
+        FullscreenMapButton(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(12.dp)
+        ) { fullscreen = true }
+    }
+
+    if (fullscreen) {
+        FullscreenRouteMap(
+            title = title,
+            subtitle = subtitle,
+            state = state,
+            onClose = { fullscreen = false }
+        )
+    }
+}
+
+@Composable
+private fun FullscreenRouteMap(
+    title: String,
+    subtitle: String,
+    state: RouteMapState,
+    onClose: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            CleanOsmMap(
+                state = state,
+                modifier = Modifier.fillMaxSize(),
+                tapOpensFullscreen = false,
+                onTapMap = {}
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(14.dp)
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xCC0A0C11))
+                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("‹", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
+            }
+
+        }
+    }
+}
+
+@Composable
+private fun CleanOsmMap(
+    state: RouteMapState,
+    modifier: Modifier,
+    tapOpensFullscreen: Boolean,
+    onTapMap: () -> Unit
+) {
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx ->
+            Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+            Configuration.getInstance().userAgentValue = ctx.packageName
+            MapView(ctx).apply {
+                setTileSource(TileSourceFactory.MAPNIK)
+                setMultiTouchControls(!tapOpensFullscreen)
+                minZoomLevel = 4.0
+                maxZoomLevel = 20.0
+                controller.setZoom(if (tapOpensFullscreen) 14.5 else 15.2)
+                controller.setCenter(GeoPoint(-20.4697, -54.6201))
+                if (tapOpensFullscreen) {
+                    setOnTouchListener { _, event ->
+                        if (event.action == MotionEvent.ACTION_UP) onTapMap()
+                        true
+                    }
+                } else {
                     setOnTouchListener { view, event ->
                         if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
                             view.parent?.requestDisallowInterceptTouchEvent(false)
@@ -118,123 +230,92 @@ fun RealDeliveryMap(
                         false
                     }
                 }
-            },
-            update = { map -> applyRouteToMap(map, state) }
-        )
-
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.04f), Color.Black.copy(alpha = 0.42f))))
-        )
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xE60A0C11))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            Text(title, color = MapText, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, color = MapMuted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color(0xE60A0C11))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(999.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MapLegendDot(MapGreen)
-            Text("Coleta", color = MapText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(12.dp))
-            MapLegendDot(MapPurple)
-            Text("Entrega", color = MapText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-
-        if (state.loading) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xE60A0C11))
-                    .padding(14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator(color = MapGreen, strokeWidth = 3.dp)
-                Spacer(Modifier.height(8.dp))
-                Text("Carregando mapa", color = MapText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
-        } else if (state.pickup == null && state.dropoff == null) {
-            Text(
-                "Mapa real indisponível para este endereço",
-                color = MapText,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xE60A0C11))
-                    .padding(12.dp)
-            )
-        }
-    }
+        },
+        update = { map -> applyRouteToMap(map, state) }
+    )
 }
 
 @Composable
-private fun MapLegendDot(color: Color) {
+private fun FullscreenMapButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        Modifier
-            .padding(end = 6.dp)
-            .width(10.dp)
-            .height(10.dp)
+        modifier = modifier
+            .size(46.dp)
             .clip(CircleShape)
-            .background(color)
-    )
+            .background(Color(0xE60A0C11))
+            .border(1.dp, Color.White.copy(alpha = 0.20f), CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(22.dp)) {
+            val stroke = Stroke(width = 3f, cap = StrokeCap.Round)
+            val c = Color.White
+            val s = size.width
+            val p = 1.5f
+            val l = s * 0.34f
+
+            drawLine(c, Offset(p, p + l), Offset(p, p), strokeWidth = stroke.width, cap = stroke.cap)
+            drawLine(c, Offset(p, p), Offset(p + l, p), strokeWidth = stroke.width, cap = stroke.cap)
+
+            drawLine(c, Offset(s - p - l, p), Offset(s - p, p), strokeWidth = stroke.width, cap = stroke.cap)
+            drawLine(c, Offset(s - p, p), Offset(s - p, p + l), strokeWidth = stroke.width, cap = stroke.cap)
+
+            drawLine(c, Offset(p, s - p - l), Offset(p, s - p), strokeWidth = stroke.width, cap = stroke.cap)
+            drawLine(c, Offset(p, s - p), Offset(p + l, s - p), strokeWidth = stroke.width, cap = stroke.cap)
+
+            drawLine(c, Offset(s - p - l, s - p), Offset(s - p, s - p), strokeWidth = stroke.width, cap = stroke.cap)
+            drawLine(c, Offset(s - p, s - p - l), Offset(s - p, s - p), strokeWidth = stroke.width, cap = stroke.cap)
+        }
+    }
 }
 
 private fun applyRouteToMap(map: MapView, state: RouteMapState) {
     map.overlays.clear()
 
-    val pickup = state.pickup
-    val dropoff = state.dropoff
-    val points = state.route.ifEmpty { listOfNotNull(pickup, dropoff) }
+    val pointsForCamera = buildList {
+        state.driver?.let { add(it) }
+        state.pickup?.let { add(it) }
+        state.dropoff?.let { add(it) }
+        addAll(state.route)
+    }.distinctBy { "${it.latitude},${it.longitude}" }
 
-    if (points.isNotEmpty()) {
-        val center = points.centerPoint()
+    if (pointsForCamera.isNotEmpty()) {
+        val center = pointsForCamera.centerPoint()
         map.controller.setCenter(center)
-        map.controller.setZoom(points.bestZoom())
+        map.controller.setZoom(pointsForCamera.bestZoom())
     }
 
-    if (points.size >= 2) {
+    if (state.route.size >= 2) {
         val line = Polyline().apply {
-            setPoints(points)
-            outlinePaint.color = android.graphics.Color.rgb(130, 201, 30)
-            outlinePaint.strokeWidth = 9f
+            setPoints(state.route)
+            outlinePaint.color = android.graphics.Color.rgb(124, 77, 255)
+            outlinePaint.strokeWidth = 10f
             outlinePaint.isAntiAlias = true
         }
         map.overlays.add(line)
     }
 
-    if (pickup != null) {
+    state.pickup?.let {
         map.overlays.add(Marker(map).apply {
-            position = pickup
-            title = "Coleta"
+            position = it
+            title = "Loja / coleta"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
         })
     }
 
-    if (dropoff != null) {
+    state.dropoff?.let {
         map.overlays.add(Marker(map).apply {
-            position = dropoff
-            title = "Entrega"
+            position = it
+            title = "Cliente / entrega"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        })
+    }
+
+    state.driver?.let {
+        map.overlays.add(Marker(map).apply {
+            position = it
+            title = "Sua localização"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         })
     }
 
@@ -242,23 +323,41 @@ private fun applyRouteToMap(map: MapView, state: RouteMapState) {
 }
 
 private suspend fun buildRouteMapState(
+    context: Context,
     pickupAddress: String,
     dropoffAddress: String,
     pickupLat: Double?,
     pickupLng: Double?,
     dropoffLat: Double?,
-    dropoffLng: Double?
+    dropoffLng: Double?,
+    mode: DeliveryMapMode
 ): RouteMapState {
     val pickup = coordinateOrNull(pickupLat, pickupLng) ?: geocodeTomTom(pickupAddress)
     val dropoff = coordinateOrNull(dropoffLat, dropoffLng) ?: geocodeTomTom(dropoffAddress)
-    val route = if (pickup != null && dropoff != null) fetchTomTomRoute(pickup, dropoff) else emptyList()
-    val fallbackRoute = route.ifEmpty { listOfNotNull(pickup, dropoff) }
+    val driver = if (mode == DeliveryMapMode.PICKUP_TO_DROPOFF) null else context.lastKnownDriverPoint()
+
+    val start = when (mode) {
+        DeliveryMapMode.PICKUP_TO_DROPOFF -> pickup
+        DeliveryMapMode.DRIVER_TO_PICKUP -> driver ?: pickup
+        DeliveryMapMode.DRIVER_TO_DROPOFF -> driver ?: pickup
+    }
+
+    val end = when (mode) {
+        DeliveryMapMode.PICKUP_TO_DROPOFF -> dropoff
+        DeliveryMapMode.DRIVER_TO_PICKUP -> pickup
+        DeliveryMapMode.DRIVER_TO_DROPOFF -> dropoff
+    }
+
+    val route = if (start != null && end != null) fetchTomTomRoute(start, end) else emptyList()
+    val fallbackRoute = route.ifEmpty { listOfNotNull(start, end) }
+
     return RouteMapState(
+        driver = driver,
         pickup = pickup,
         dropoff = dropoff,
         route = fallbackRoute,
         loading = false,
-        label = if (route.isNotEmpty()) "Rota real" else "Mapa real"
+        updatedAtMillis = System.currentTimeMillis()
     )
 }
 
@@ -268,6 +367,23 @@ private fun coordinateOrNull(lat: Double?, lng: Double?): GeoPoint? {
     if (safeLat == 0.0 || safeLng == 0.0) return null
     if (abs(safeLat) > 90 || abs(safeLng) > 180) return null
     return GeoPoint(safeLat, safeLng)
+}
+
+@SuppressLint("MissingPermission")
+private fun Context.lastKnownDriverPoint(): GeoPoint? {
+    val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val hasCoarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    if (!hasFine && !hasCoarse) return null
+
+    val manager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+    val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+
+    val best: Location = providers
+        .mapNotNull { provider -> runCatching { manager.getLastKnownLocation(provider) }.getOrNull() }
+        .maxByOrNull { it.time }
+        ?: return null
+
+    return coordinateOrNull(best.latitude, best.longitude)
 }
 
 private fun geocodeTomTom(address: String): GeoPoint? {

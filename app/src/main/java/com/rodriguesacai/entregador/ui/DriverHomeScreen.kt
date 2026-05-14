@@ -680,7 +680,8 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
             pickupLat = ride.pickupLat,
             pickupLng = ride.pickupLng,
             dropoffLat = ride.dropoffLat,
-            dropoffLng = ride.dropoffLng
+            dropoffLng = ride.dropoffLng,
+            mode = if (ride.status == "delivering") DeliveryMapMode.DRIVER_TO_DROPOFF else DeliveryMapMode.DRIVER_TO_PICKUP
         )
         Spacer(Modifier.height(12.dp))
         StopLine("COLETA", ride.pickup, Lime)
