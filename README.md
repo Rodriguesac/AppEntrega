@@ -36,3 +36,11 @@ git push
 ## Observação importante
 
 O arquivo enviado como referência era um APK compilado, não o código-fonte original do web app. Por isso esta V2 reaproveita os assets web compilados do PainelUP e os empacota em um Android novo, com ponte nativa para FCM/tela cheia.
+
+## Correção importante para quem aplicou por cima da versão nativa
+
+Se o GitHub Actions mostrar erros como `Unresolved reference 'compose'`, `DriverHomeScreen.kt`, `UrgentRideScreen.kt` ou `OnlineDriverService.kt`, rode o arquivo:
+
+`APLICAR_V2_LIMPO_E_PUSH_WINDOWS.bat`
+
+Ele remove os restos da versão nativa/Compose antiga antes do commit. A V2 PainelUP híbrida usa WebView + assets do PainelUP + ponte nativa Android, então esses arquivos antigos não devem mais compilar.

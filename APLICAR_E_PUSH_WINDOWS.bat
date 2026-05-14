@@ -1,7 +1,2 @@
 @echo off
-cd /d %~dp0
-git status
-git add .
-git commit -m "V2 PainelUP hibrido"
-git push
-pause
+call "%~dp0APLICAR_V2_LIMPO_E_PUSH_WINDOWS.bat"
