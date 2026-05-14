@@ -950,6 +950,48 @@ private fun normalizeUiStatus(raw: String): String {
     }
 }
 
+private fun DocumentSnapshot.driverPayoutValue(): Double {
+    return anyDouble(
+        "repasseFrota",
+        "repassePiloto",
+        "valorRepasseFrota",
+        "valorRepassePiloto",
+        "financeiroEntrega.repasseFrota",
+        "financeiroEntrega.repassePiloto",
+        "valores.repasseFrota",
+        "valores.repassePiloto",
+        "logistica.repasseFrota",
+        "logistica.repassePiloto",
+        "calculo.valorTotalMotoboy",
+        "valorTotalMotoboy",
+        "valorMotoboy",
+        "valorEntregador",
+        "valorRepasseMotoboy",
+        "valorCorrida",
+        "valorRota"
+    ) ?: anyString("repasse", "valorRepasse", "valorMotoboyFormatado").toMoneyDouble() ?: 0.0
+}
+
+private fun DocumentSnapshot.clientTotalValue(): Double {
+    return anyDouble(
+        "valorTotalPedido",
+        "totalPedido",
+        "total",
+        "valorTotalCliente",
+        "pedidoTotal",
+        "valorCobrarCliente"
+    ) ?: anyString("totalFormatado", "valorTotal", "valorCobrar").toMoneyDouble() ?: 0.0
+}
+
+private fun DocumentSnapshot.machineFeeValue(): Double {
+    return anyDouble(
+        "taxaMaquininha",
+        "valorTaxaMaquininha",
+        "maquininhaTaxaValor",
+        "financeiroEntrega.taxaMaquininha"
+    ) ?: 0.0
+}
+
 private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val rawStatus = anyString("status", "statusEntregador", "statusMotoboy", "statusOfertaEntregador").ifBlank { "pending" }
     val number = driverPayoutValue()
