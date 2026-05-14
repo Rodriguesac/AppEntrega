@@ -14,7 +14,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 55
-        versionName = "5.3.0-produto-nativo"
+        versionName = "5.3.2-aguarda-loja"
     }
 
     buildFeatures { compose = true }

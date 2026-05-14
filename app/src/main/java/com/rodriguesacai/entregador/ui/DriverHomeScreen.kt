@@ -1177,7 +1177,7 @@ private fun SettingsCenterContent(
             SettingButton("Problemas com corrida", "Relatar ocorrência")
         }
         SettingsSection("Sobre") {
-            SettingButton("Versão do app", "5.3.0 produto nativo")
+            SettingButton("Versão do app", "5.3.2 aguarda loja")
             SettingButton("Termos e privacidade", "Documentos do app")
         }
     }
@@ -1261,7 +1261,7 @@ private fun MoreContent(
 
         GlassCard(padding = 18) {
             Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 5.3.0 • produto nativo", color = Muted2, fontSize = 12.sp)
+            Text("Versão 5.3.2 • aguarda loja", color = Muted2, fontSize = 12.sp)
         }
     }
 }

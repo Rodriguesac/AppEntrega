@@ -134,7 +134,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.3.0-produto-nativo",
+            "appVersion" to "5.3.2-aguarda-loja",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -177,7 +177,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.3.0-produto-nativo"
+                "appVersion" to "5.3.2-aguarda-loja"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -217,7 +217,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.3.0-produto-nativo"
+                "appVersion" to "5.3.2-aguarda-loja"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -256,7 +256,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.3.0-produto-nativo",
+                "appVersion" to "5.3.2-aguarda-loja",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -358,7 +358,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.3.0-produto-nativo"
+                "appVersion" to "5.3.2-aguarda-loja"
             ),
             SetOptions.merge()
         )
@@ -380,7 +380,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.3.0-produto-nativo"
+            "appVersion" to "5.3.2-aguarda-loja"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -930,7 +930,62 @@ data class DriverRide(
     }
 }
 
-private val OFFER_STATUSES = setOf("BUSCANDO_ENTREGADOR", "OFERTA", "PENDENTE", "AGUARDANDO_ENTREGADOR", "PENDING", "BUSCANDO_MOTOBOY")
+private val OFFER_STATUSES = setOf(
+    "BUSCANDO_ENTREGADOR",
+    "OFERTA",
+    "OFERTA_ENTREGADOR",
+    "AGUARDANDO_ENTREGADOR",
+    "BUSCANDO_MOTOBOY",
+    "LIBERADO_PARA_ENTREGA",
+    "LIBERADO_ENTREGA",
+    "PRONTO_PARA_ENTREGA",
+    "PRONTO_ENTREGA",
+    "DISPATCH",
+    "PENDENTE",
+    "PENDING"
+)
+private val ROUTE_OFFER_STATUSES = OFFER_STATUSES
+private val PEDIDO_OFFER_STATUSES = setOf(
+    "BUSCANDO_ENTREGADOR",
+    "OFERTA",
+    "OFERTA_ENTREGADOR",
+    "AGUARDANDO_ENTREGADOR",
+    "BUSCANDO_MOTOBOY",
+    "LIBERADO_PARA_ENTREGA",
+    "LIBERADO_ENTREGA",
+    "PRONTO_PARA_ENTREGA",
+    "PRONTO_ENTREGA",
+    "DISPATCH"
+)
+private val STORE_ACCEPTED_STATUSES = setOf(
+    "ACEITO",
+    "ACEITA",
+    "APROVADO",
+    "APROVADA",
+    "CONFIRMADO",
+    "CONFIRMADA",
+    "EM_PREPARO",
+    "PREPARANDO",
+    "PRONTO",
+    "PRONTO_PARA_ENTREGA",
+    "LIBERADO",
+    "LIBERADO_PARA_ENTREGA",
+    "LIBERADO_ENTREGA"
+)
+private val STORE_NOT_ACCEPTED_STATUSES = setOf(
+    "PENDENTE",
+    "PENDING",
+    "NOVO",
+    "CRIADO",
+    "ABERTO",
+    "RECEBIDO",
+    "AGUARDANDO",
+    "AGUARDANDO_LOJA",
+    "AGUARDANDO_ACEITE",
+    "AGUARDANDO_CONFIRMACAO",
+    "AGUARDANDO_CONFIRMAÇÃO",
+    "CARRINHO"
+)
 private val ACCEPTED_STATUSES = setOf("ACEITA", "A_CAMINHO_LOJA", "AGUARDANDO_PRONTOS", "ACCEPTED", "ACEITO", "INDO_COLETA")
 private val PICKUP_STATUSES = setOf("COLETANDO", "LIBERADA_PARA_SAIDA", "PICKUP", "EM_COLETA", "COLETADO")
 private val DELIVERING_STATUSES = setOf("EM_ROTA", "SAIU_ENTREGA", "A_CAMINHO_CLIENTE", "ENTREGADOR_NO_LOCAL", "DELIVERING", "EM_ENTREGA", "CHEGOU_ENTREGA")
@@ -938,16 +993,98 @@ private val FINAL_HISTORY_STATUSES = setOf("CONCLUIDA", "ENTREGUE", "FINALIZADA"
 private val APPROVED_STATUSES = setOf("APROVADO", "APPROVED", "LIBERADO", "ATIVO", "ACTIVE")
 private val BLOCKED_STATUSES = setOf("REPROVADO", "BLOQUEADO", "BLOCKED", "SUSPENSO", "SUSPENDED", "CANCELADO")
 
-private fun normalizeUiStatus(raw: String): String {
+private fun normalizeUiStatus(raw: String, collectionName: String = ""): String {
     val status = raw.upperOrTrim()
+    val offerStatuses = if (collectionName == "pedidos") PEDIDO_OFFER_STATUSES else ROUTE_OFFER_STATUSES
     return when {
-        status in OFFER_STATUSES -> "pending"
+        status in offerStatuses -> "pending"
         status in ACCEPTED_STATUSES -> "accepted"
         status in PICKUP_STATUSES -> "pickup"
         status in DELIVERING_STATUSES -> "delivering"
         status in FINAL_HISTORY_STATUSES -> "finished"
-        else -> raw.ifBlank { "pending" }
+        else -> raw.ifBlank { "" }
     }
+}
+
+private fun DocumentSnapshot.storeAcceptedForDelivery(): Boolean {
+    val explicitRelease = anyBoolean(
+        "liberadoParaEntregador",
+        "liberadoParaMotoboy",
+        "liberadoParaEntrega",
+        "enviarParaEntregador",
+        "ofertarEntregador",
+        "ofertaLiberada",
+        "rotaCriada",
+        "possuiRota",
+        "dispatchReleased"
+    ) == true
+
+    val acceptedFlag = anyBoolean(
+        "aceitoPelaLoja",
+        "lojaAceitou",
+        "pedidoAceito",
+        "confirmadoPelaLoja",
+        "aceito",
+        "confirmado"
+    ) == true
+
+    val acceptedTimestamp = anyTimestamp(
+        "aceitoEm",
+        "lojaAceitouEm",
+        "confirmadoEm",
+        "aprovadoEm",
+        "preparoIniciadoEm"
+    ) != null
+
+    val storeStatus = anyString(
+        "statusLoja",
+        "statusPedido",
+        "statusRestaurante",
+        "statusOperacao",
+        "statusOperação",
+        "pedidoStatus",
+        "cozinhaStatus",
+        "status"
+    ).upperOrTrim()
+
+    if (storeStatus in STORE_NOT_ACCEPTED_STATUSES && !explicitRelease && !acceptedFlag && !acceptedTimestamp) {
+        return false
+    }
+
+    return explicitRelease || acceptedFlag || acceptedTimestamp || storeStatus in STORE_ACCEPTED_STATUSES
+}
+
+private fun DocumentSnapshot.deliveryReleasedToDriver(collectionName: String): Boolean {
+    if (collectionName != "pedidos") return true
+
+    val deliveryStatus = anyString(
+        "statusOfertaEntregador",
+        "statusEntregador",
+        "statusMotoboy",
+        "statusEntrega",
+        "statusRota",
+        "logistica.status",
+        "deliveryStatus",
+        "ofertaStatus"
+    ).upperOrTrim()
+
+    val mainStatus = anyString("status").upperOrTrim()
+    val explicitRelease = anyBoolean(
+        "liberadoParaEntregador",
+        "liberadoParaMotoboy",
+        "liberadoParaEntrega",
+        "enviarParaEntregador",
+        "ofertarEntregador",
+        "ofertaLiberada",
+        "rotaCriada",
+        "possuiRota",
+        "dispatchReleased"
+    ) == true
+
+    val deliveryIsOffering = deliveryStatus in PEDIDO_OFFER_STATUSES
+    val mainStatusIsDispatch = mainStatus in PEDIDO_OFFER_STATUSES
+
+    return storeAcceptedForDelivery() && (explicitRelease || deliveryIsOffering || mainStatusIsDispatch)
 }
 
 private fun DocumentSnapshot.driverPayoutValue(): Double {
@@ -993,7 +1130,23 @@ private fun DocumentSnapshot.machineFeeValue(): Double {
 }
 
 private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
-    val rawStatus = anyString("status", "statusEntregador", "statusMotoboy", "statusOfertaEntregador").ifBlank { "pending" }
+    if (!deliveryReleasedToDriver(collectionName)) return null
+
+    val rawStatus = if (collectionName == "pedidos") {
+        anyString(
+            "statusOfertaEntregador",
+            "statusEntregador",
+            "statusMotoboy",
+            "statusEntrega",
+            "statusRota",
+            "logistica.status",
+            "deliveryStatus",
+            "ofertaStatus",
+            "status"
+        )
+    } else {
+        anyString("status", "statusEntregador", "statusMotoboy", "statusOfertaEntregador")
+    }.ifBlank { "" }
     val number = driverPayoutValue()
     val clientTotal = clientTotalValue()
     val machineFee = machineFeeValue()
@@ -1018,7 +1171,7 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     return DriverRide(
         id = id,
         collectionName = collectionName,
-        status = normalizeUiStatus(rawStatus),
+        status = normalizeUiStatus(rawStatus, collectionName),
         rawStatus = rawStatus,
         value = DriverRepository.formatCurrency(number),
         valueNumber = number,
