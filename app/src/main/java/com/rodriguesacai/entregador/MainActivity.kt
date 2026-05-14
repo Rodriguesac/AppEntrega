@@ -62,11 +62,27 @@ class MainActivity : ComponentActivity() {
 
     private fun openNavigator(pickup: String, dropoff: String) {
         val destination = dropoff.ifBlank { pickup }.ifBlank { "Rodrigues Açaí e Cia" }
-        val navIntent = Intent(Intent.ACTION_VIEW, "google.navigation:q=${Uri.encode(destination)}".toUri()).apply {
-            setPackage("com.google.android.apps.maps")
+        val encoded = Uri.encode(destination)
+        val preference = AppSettings.getNavigationApp(this)
+
+        val intents = when (preference) {
+            AppSettings.NAV_GOOGLE -> listOf(
+                Intent(Intent.ACTION_VIEW, "google.navigation:q=$encoded".toUri()).apply { setPackage("com.google.android.apps.maps") },
+                Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri())
+            )
+            AppSettings.NAV_WAZE -> listOf(
+                Intent(Intent.ACTION_VIEW, "waze://?q=$encoded&navigate=yes".toUri()).apply { setPackage("com.waze") },
+                Intent(Intent.ACTION_VIEW, "https://waze.com/ul?q=$encoded&navigate=yes".toUri())
+            )
+            else -> listOf(
+                Intent(Intent.ACTION_VIEW, "google.navigation:q=$encoded".toUri()).apply { setPackage("com.google.android.apps.maps") },
+                Intent(Intent.ACTION_VIEW, "waze://?q=$encoded&navigate=yes".toUri()).apply { setPackage("com.waze") },
+                Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri())
+            )
         }
-        runCatching { startActivity(navIntent) }.onFailure {
-            startActivity(Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(destination)}".toUri()))
+
+        for (intent in intents) {
+            if (runCatching { startActivity(intent) }.isSuccess) return
         }
     }
 

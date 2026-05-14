@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rodriguesacai.entregador.AppSettings
 import com.rodriguesacai.entregador.data.DriverHistory
 import com.rodriguesacai.entregador.data.DriverProfile
 import com.rodriguesacai.entregador.data.DriverRegistrationRequest
@@ -262,7 +263,7 @@ private fun LoginScreen(
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Rodrigues Entregas", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                    Text("PainelUP Entregador • 100% nativo", color = Color(0xFF82C91E), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                    Text("Visual PainelUP • app 100% nativo", color = Color(0xFF82C91E), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
                 }
             }
 
@@ -275,7 +276,7 @@ private fun LoginScreen(
             Spacer(Modifier.height(18.dp))
             if (mode == "login") {
                 Text("Acesso do entregador", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text("Entre com CPF ou telefone. Senha será exigida quando existir no cadastro.", color = Color(0xFFD7CCDF), fontSize = 13.sp, fontFamily = AppFont)
+                Text("Entre com CPF/telefone e senha quando configurada. Cadastros novos ficam em análise no painel gestor.", color = Color(0xFFD7CCDF), fontSize = 13.sp, fontFamily = AppFont)
                 Spacer(Modifier.height(14.dp))
                 AppField(
                     value = login,
@@ -351,7 +352,7 @@ private fun LoginScreen(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "Fluxo nativo: cadastro no app, aprovação no gestor, sessão salva no aparelho e pedidos reais pelo Firebase.",
+                "Fluxo de produção: cadastro no app, aprovação no gestor, sessão salva no aparelho e pedidos reais em tempo real.",
                 color = Color(0xFF9D91A8),
                 fontSize = 12.sp,
                 fontFamily = AppFont
@@ -524,10 +525,10 @@ private fun OfflineCard() {
 @Composable
 private fun WaitingRealRideCard() {
     PremiumCard {
-        Text("Aguardando pedido real", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
-        Text("Sem botão de simulação na tela principal. Quando o painel criar uma corrida pendente, ela aparece aqui automaticamente.", color = Color(0xFFD7CCDF), fontSize = 14.sp)
+        Text("Aguardando nova corrida", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text("Quando o gestor liberar uma entrega, ela aparece aqui automaticamente com alerta sonoro e tela urgente.", color = Color(0xFFD7CCDF), fontSize = 14.sp)
         Spacer(Modifier.height(14.dp))
-        NativeRoutePreview("Radar de entregas", "O app esta ouvindo rotas_entrega/pedidos em tempo real")
+        NativeRoutePreview("Radar de entregas", "Online e pronto para receber pedidos reais")
     }
 }
 
@@ -632,13 +633,21 @@ private fun HistoryRow(item: DriverHistory) {
 
 @Composable
 private fun AccountContent(profile: DriverProfile, online: Boolean, onLogout: () -> Unit) {
+    val context = LocalContext.current
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var changeRequest by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         PremiumCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Avatar(profile.name)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(profile.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                    Text(profile.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(if (profile.verified) "Verificado profissional" else "Cadastro pendente", color = Color(0xFF82C91E), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -647,22 +656,133 @@ private fun AccountContent(profile: DriverProfile, online: Boolean, onLogout: ()
             InfoLine("Telefone", profile.phone.ifBlank { "Não informado" })
             InfoLine("ID Firebase", profile.id)
             Spacer(Modifier.height(14.dp))
-            Text("Dados pessoais e recebimento devem ser alterados pelo fluxo de solicitação/aprovação no painel gestor.", color = Color(0xFFBFAFCB), fontSize = 13.sp)
+            Text("Dados pessoais e recebimento ficam protegidos. Alterações passam por solicitação e aprovação no painel gestor.", color = Color(0xFFBFAFCB), fontSize = 13.sp)
             Spacer(Modifier.height(14.dp))
             OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(18.dp)) { Text("Sair da conta") }
         }
+
+        PremiumCard {
+            Text("Senha de acesso", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+            Text("Crie ou atualize uma senha para deixar o login mais seguro. Entregadores antigos sem senha ainda entram até configurarem uma.", color = Color(0xFFD7CCDF), fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            AppField(password, { password = it }, "Nova senha", KeyboardType.Password, PasswordVisualTransformation())
+            Spacer(Modifier.height(10.dp))
+            AppField(confirmPassword, { confirmPassword = it }, "Confirmar senha", KeyboardType.Password, PasswordVisualTransformation())
+            Spacer(Modifier.height(12.dp))
+            Button(
+                enabled = !loading,
+                onClick = {
+                    localError = ""
+                    message = ""
+                    if (password != confirmPassword) {
+                        localError = "As senhas não conferem."
+                    } else {
+                        loading = true
+                        DriverRepository.updateAccessPassword(
+                            context = context,
+                            newPassword = password,
+                            onSuccess = {
+                                loading = false
+                                password = ""
+                                confirmPassword = ""
+                                message = "Senha atualizada com sucesso."
+                            },
+                            onError = {
+                                loading = false
+                                localError = it
+                            }
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082), contentColor = Color(0xFF82C91E))
+            ) { Text("Salvar senha", fontWeight = FontWeight.Black) }
+        }
+
+        PremiumCard {
+            Text("Solicitar alteração", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+            Text("Use para pedir troca de telefone, Pix, banco, placa ou dados de recebimento.", color = Color(0xFFD7CCDF), fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            AppField(changeRequest, { changeRequest = it }, "Descreva a alteração")
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                enabled = !loading,
+                onClick = {
+                    localError = ""
+                    message = ""
+                    loading = true
+                    DriverRepository.requestProfileChange(
+                        context = context,
+                        requestText = changeRequest,
+                        onSuccess = {
+                            loading = false
+                            changeRequest = ""
+                            message = "Solicitação enviada ao gestor."
+                        },
+                        onError = {
+                            loading = false
+                            localError = it
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) { Text("Enviar solicitação") }
+        }
+
+        if (localError.isNotBlank()) AlertCard(localError)
+        if (message.isNotBlank()) PremiumCard { Text(message, color = Color(0xFF82C91E), fontSize = 14.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
 @Composable
 private fun MoreContent(onOpenBatterySettings: () -> Unit) {
+    val context = LocalContext.current
+    var navPreference by remember { mutableStateOf(AppSettings.getNavigationApp(context)) }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         PremiumCard {
             Text("Mais", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
-            Text("Configurações operacionais do app nativo", color = Color(0xFFD7CCDF), fontSize = 14.sp)
-            Spacer(Modifier.height(14.dp))
-            TextButton(onClick = onOpenBatterySettings, modifier = Modifier.fillMaxWidth()) { Text("Abrir ajustes de bateria/permissões") }
-            Text("Versao 3.2.0 nativo • visual PainelUP • login/cadastro", color = Color(0xFF9D91A8), fontSize = 12.sp)
+            Text("Ajustes de operação do entregador", color = Color(0xFFD7CCDF), fontSize = 14.sp)
+            Spacer(Modifier.height(16.dp))
+
+            Text("Navegação padrão", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Text("Escolha qual app abrir quando tocar em Iniciar navegação.", color = Color(0xFFBFAFCB), fontSize = 13.sp)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ModeButton("Celular", navPreference == AppSettings.NAV_AUTO, Modifier.weight(1f)) {
+                    navPreference = AppSettings.NAV_AUTO
+                    AppSettings.setNavigationApp(context, navPreference)
+                }
+                ModeButton("Maps", navPreference == AppSettings.NAV_GOOGLE, Modifier.weight(1f)) {
+                    navPreference = AppSettings.NAV_GOOGLE
+                    AppSettings.setNavigationApp(context, navPreference)
+                }
+                ModeButton("Waze", navPreference == AppSettings.NAV_WAZE, Modifier.weight(1f)) {
+                    navPreference = AppSettings.NAV_WAZE
+                    AppSettings.setNavigationApp(context, navPreference)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("Atual: ${AppSettings.navigationLabel(navPreference)}", color = Color(0xFF82C91E), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+
+        PremiumCard {
+            Text("Notificações urgentes", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text("Canal novo de som/vibração da V4. Se o Android silenciar, abra as permissões e ative som para Nova corrida.", color = Color(0xFFD7CCDF), fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = onOpenBatterySettings,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082), contentColor = Color(0xFF82C91E))
+            ) { Text("Abrir ajustes de bateria/permissões", fontWeight = FontWeight.Black) }
+        }
+
+        PremiumCard {
+            Text("Rodrigues Entregador", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text("Versao 4.0.0 RC • 100% nativo • visual PainelUP", color = Color(0xFF9D91A8), fontSize = 12.sp)
         }
     }
 }

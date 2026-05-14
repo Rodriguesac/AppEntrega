@@ -16,7 +16,7 @@ import com.rodriguesacai.entregador.UrgentRideActivity
 
 object NotificationHelper {
     const val CHANNEL_ONLINE = "driver_online"
-    const val CHANNEL_URGENT = "urgent_ride_v31"
+    const val CHANNEL_URGENT = "urgent_ride_v40"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -60,8 +60,8 @@ object NotificationHelper {
         )
         return NotificationCompat.Builder(context, CHANNEL_ONLINE)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Rodrigues Entregador online")
-            .setContentText("Aguardando pedidos reais do Firebase.")
+            .setContentTitle("Rodrigues Entregador")
+            .setContentText("Online e aguardando novas corridas.")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pending)

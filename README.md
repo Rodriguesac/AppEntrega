@@ -1,17 +1,26 @@
-# Rodrigues Entregador Nativo
+# Rodrigues Entregador V4 Release Candidate
 
-Versão 3.0.0: app Android 100% nativo em Kotlin + Jetpack Compose + Firebase.
+Versão 4.0.0 RC do app do entregador, 100% nativo em Kotlin + Jetpack Compose.
 
-Sem WebView, sem Capacitor e sem web app empacotado como interface principal.
+## Incluído
 
-## Fluxo
+- Login nativo por CPF/telefone com senha quando existir no cadastro.
+- Cadastro nativo de entregador, nascendo pendente para aprovação no painel gestor.
+- Sessão salva no aparelho.
+- Busca no schema real do gestor: `entregadores`, `rotas_entrega`, `pedidos`, `historicoEntregador`.
+- Status online/offline gravado no Firebase.
+- Token FCM salvo no cadastro do entregador.
+- Escuta de pedido real em tempo real.
+- Tela de oferta, aceitar/rejeitar/expirar e finalizar corrida.
+- Alerta urgente com canal novo de notificação V4, som WAV real e vibração.
+- Navegação externa com preferência: padrão do celular, Google Maps ou Waze.
+- Histórico e ganhos básicos vindos do Firebase.
+- Conta com criação/alteração de senha e solicitação de alteração de dados ao gestor.
 
-- Login por CPF ou telefone cadastrado no Firestore.
-- Sessão salva no celular.
-- Status online/offline salvo em `drivers/{driverId}`.
-- FCM token salvo no entregador logado.
-- Corridas reais lidas de `rides`.
-- Histórico salvo em `driverHistory`.
-- Tela urgente nativa para nova corrida.
+## Antes de enviar para motoboys
 
-Leia `README_V3_NATIVO.txt` antes de aplicar.
+1. Gerar APK pelo GitHub Actions.
+2. Instalar em pelo menos dois celulares Android.
+3. Testar login, online/offline, pedido aberto, app em segundo plano e tela bloqueada.
+4. No Android, verificar se o canal "Nova corrida" está com som ativo.
+

@@ -125,7 +125,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "3.2.0-nativo-login-cadastro",
+            "appVersion" to "4.0.0-rc-nativo",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -141,6 +141,73 @@ object DriverRepository {
                     .addOnFailureListener { onError(it.message ?: "Cadastro salvo, mas falhou ao criar solicitacao.") }
             }
             .addOnFailureListener { onError(it.message ?: "Falha ao enviar cadastro.") }
+    }
+
+
+    fun updateAccessPassword(
+        context: Context,
+        newPassword: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val profile = currentSession(context)
+        if (profile == null) {
+            onError("Faca login antes de alterar a senha.")
+            return
+        }
+        if (newPassword.length < 6) {
+            onError("A senha precisa ter pelo menos 6 caracteres.")
+            return
+        }
+        val now = Timestamp.now()
+        db.collection(profile.collectionName).document(profile.id).set(
+            mapOf(
+                "senhaHash" to sha256(newPassword),
+                "senhaAppHash" to sha256(newPassword),
+                "senhaAtualizadaEm" to now,
+                "passwordUpdatedAt" to now,
+                "atualizadoEm" to now,
+                "updatedAt" to now,
+                "appVersion" to "4.0.0-rc-nativo"
+            ),
+            SetOptions.merge()
+        ).addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it.message ?: "Falha ao salvar senha.") }
+    }
+
+    fun requestProfileChange(
+        context: Context,
+        requestText: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val profile = currentSession(context)
+        if (profile == null) {
+            onError("Faca login antes de solicitar alteracao.")
+            return
+        }
+        val text = requestText.trim()
+        if (text.length < 8) {
+            onError("Descreva o que precisa alterar.")
+            return
+        }
+        val now = Timestamp.now()
+        db.collection("solicitacoesEntregadores").add(
+            mapOf(
+                "tipo" to "ALTERACAO_DADOS_ENTREGADOR",
+                "entregadorId" to profile.id,
+                "entregadorNome" to profile.name,
+                "telefone" to profile.phone,
+                "descricao" to text,
+                "status" to "PENDENTE",
+                "prioridade" to "NORMAL",
+                "origem" to "android_native",
+                "appVersion" to "4.0.0-rc-nativo",
+                "criadoEm" to now,
+                "createdAt" to now
+            )
+        ).addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it.message ?: "Falha ao enviar solicitacao.") }
     }
 
     private fun buildSearchValues(raw: String, normalized: String): List<String> {
@@ -234,7 +301,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "3.2.0-nativo-login-cadastro"
+                "appVersion" to "4.0.0-rc-nativo"
             ),
             SetOptions.merge()
         )
@@ -256,7 +323,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "3.2.0-nativo-login-cadastro"
+            "appVersion" to "4.0.0-rc-nativo"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
