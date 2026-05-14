@@ -14,7 +14,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 55
-        versionName = "5.3.2-aguarda-loja"
+        versionName = "5.3.3-corrige-radar"
     }
 
     buildFeatures { compose = true }
