@@ -1,82 +1,38 @@
-# Rodrigues Entregador Nativo — V4 Operacional Premium
+# Rodrigues Entregador — V2 PainelUP Híbrido
 
-Projeto Android 100% nativo em Kotlin + Jetpack Compose.
+Esta versão troca a base visual simples nativa pela base avançada do PainelUP enviada como referência.
 
-## O que esta versão traz
+## O que entra nesta entrega
 
-- Tema escuro premium inspirado na referência visual aprovada
-- Home operacional com status ONLINE/OFFLINE
-- Simulação de nova corrida em tela urgente
-- Oferta de corrida com valor, distância, tempo e paradas
-- Fluxo por estados: aguardando, oferta, coleta e entrega
-- Mapa visual mockado em Compose para não depender ainda de API externa
-- Tela de coleta com botão de navegação
-- Tela de entrega/rota em andamento
-- Ganhos, histórico, conta e menu Mais
-- Foreground service para manter operação online
-- Firebase Messaging preparado para push urgente
-- Notificação full screen preparada
-- GitHub Actions para gerar APK sem Android Studio
+- App Android em WebView seguro usando `https://appassets.androidplatform.net`.
+- Interface e fluxo do PainelUP embarcados em `app/src/main/assets/public`.
+- Login não é fake: se não houver sessão salva, abre o login do PainelUP.
+- Sessão do entregador fica salva no WebView/localStorage do próprio aparelho.
+- Ponte nativa `RodriguesNative` para Android.
+- Token FCM nativo salvo e sincronizado em `entregadores/{id}` e `rastreioEntregador/{id}` quando o usuário loga.
+- Firebase Web do PainelUP continua funcionando dentro do app.
+- Notificação urgente nativa preparada para abrir tela cheia em corrida real.
+- Aceitar/Rejeitar pela tela cheia grava status em `rotas_entrega`, `pedidos` e histórico básico.
+- Upload de imagem via input file funcionando pelo WebView.
+- Geolocalização liberada só quando a página pedir localização.
+- Não pede câmera automaticamente.
 
-## Importante
+## Como testar
 
-Esta versão é uma base nativa operacional. O mapa ainda é visual/mockado dentro do app.
-A navegação real abre o Google Maps/padrão do celular pelo botão Mapa/GPS.
+1. Substitua os arquivos do repositório por esta pasta.
+2. Rode:
 
-## Build
-
-Suba os arquivos no GitHub e rode:
-
-Actions > Build APK Nativo Entregador
-
-## Arquivos importantes
-
-- app/google-services.json
-- app/src/main/res/raw/alerta.wav
-- app/src/main/java/com/rodriguesacai/entregador/ui/DriverHomeScreen.kt
-- app/src/main/java/com/rodriguesacai/entregador/ui/UrgentRideScreen.kt
-
-## V1.4 Firebase Real — incluído nesta revisão
-
-Esta revisão deixa de depender somente da simulação visual e passa a usar Firestore como base operacional mínima.
-
-### Coleções usadas
-
-`drivers/{driverId}`
-- `online`: true/false
-- `status`: available/offline
-- `fcmToken`: token para push
-- `updatedAt`: última atualização
-
-`rides/{rideId}`
-- `status`: pending, accepted, delivering ou finished
-- `value`: exemplo `R$ 12,50`
-- `distance`: exemplo `3,2 km`
-- `duration`: exemplo `22 min`
-- `pickup`: endereço/nome da coleta
-- `dropoff`: endereço/nome da entrega
-- `assignedDriverId`: vazio para qualquer entregador ou igual ao driverId do aparelho
-- `driverId`: preenchido quando o entregador aceita
-- `customerName`: nome do cliente
-
-`driverHistory`
-- registra accepted, rejected, delivering e finished.
-
-### Como testar corrida real
-
-No Firebase Console, crie um documento em `rides` com:
-
-```json
-{
-  "status": "pending",
-  "value": "R$ 12,50",
-  "distance": "3,2 km",
-  "duration": "22 min",
-  "pickup": "Rodrigues Açaí e Cia",
-  "dropoff": "Cliente próximo ao Centro",
-  "assignedDriverId": "",
-  "customerName": "Cliente teste"
-}
+```bat
+git status
+git add .
+git commit -m "V2 PainelUP hibrido"
+git push
 ```
 
-Com o app online, a oferta aparece na tela inicial. Ao aceitar, o documento muda para `accepted`; ao avançar, muda para `delivering`; ao finalizar, muda para `finished`.
+3. No GitHub Actions, baixe o artifact do APK.
+4. Instale no celular.
+5. Abra o app: ele deve iniciar no fluxo de login/sessão do PainelUP.
+
+## Observação importante
+
+O arquivo enviado como referência era um APK compilado, não o código-fonte original do web app. Por isso esta V2 reaproveita os assets web compilados do PainelUP e os empacota em um Android novo, com ponte nativa para FCM/tela cheia.
