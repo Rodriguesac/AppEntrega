@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 55
-        versionName = "5.4.0"
+        versionCode = 56
+        versionName = "5.5.0"
     }
 
     buildFeatures { compose = true }

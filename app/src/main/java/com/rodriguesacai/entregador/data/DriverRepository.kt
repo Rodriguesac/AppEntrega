@@ -24,6 +24,7 @@ object DriverRepository {
     private const val KEY_PIX = "driver_pix"
     private const val KEY_BANK = "driver_bank"
     private const val KEY_NEEDS_PASSWORD = "driver_needs_password"
+    private const val KEY_ONLINE = "driver_online"
 
     private const val REAL_DRIVER_COLLECTION = "entregadores"
     private val DRIVER_COLLECTIONS = listOf("entregadores", "drivers", "motoboys", "deliveryDrivers", "couriers")
@@ -134,7 +135,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.4.0-torre-v9-4",
+            "appVersion" to "5.5.0-radar-fix-login",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -177,7 +178,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.4.0-torre-v9-4"
+                "appVersion" to "5.5.0-radar-fix-login"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -217,7 +218,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.4.0-torre-v9-4"
+                "appVersion" to "5.5.0-radar-fix-login"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -256,7 +257,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.4.0-torre-v9-4",
+                "appVersion" to "5.5.0-radar-fix-login",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -358,7 +359,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.4.0-torre-v9-4"
+                "appVersion" to "5.5.0-radar-fix-login"
             ),
             SetOptions.merge()
         )
@@ -366,7 +367,12 @@ object DriverRepository {
         onSuccess(profile)
     }
 
+    fun isLocallyOnline(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ONLINE, false)
+    }
+
     fun setOnline(context: Context, online: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ONLINE, online).apply()
         val profile = currentSession(context) ?: return
         val payload = linkedMapOf<String, Any?>(
             "id" to profile.id,
@@ -380,7 +386,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.4.0-torre-v9-4"
+            "appVersion" to "5.5.0-radar-fix-login"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -1128,7 +1134,12 @@ private fun DocumentSnapshot.deliveryReleasedToDriver(collectionName: String): B
     val deliveryIsOffering = deliveryStatus in PEDIDO_OFFER_STATUSES
     val mainStatusIsDispatch = mainStatus in PEDIDO_OFFER_STATUSES
 
-    return storeAcceptedForDelivery() && (explicitRelease || deliveryIsOffering || mainStatusIsDispatch)
+    // Oferta disparada pela Torre não pode depender do status de produção do pedido.
+    // Em vários fluxos o painel muda o campo principal `status` para BUSCANDO_ENTREGADOR,
+    // então a checagem antiga de loja aceita barrava exatamente a oferta que deveria tocar.
+    if (explicitRelease || deliveryIsOffering || mainStatusIsDispatch) return true
+
+    return storeAcceptedForDelivery()
 }
 
 private fun DocumentSnapshot.driverPayoutValue(): Double {

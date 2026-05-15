@@ -144,7 +144,7 @@ fun DriverHomeScreen(
     val context = LocalContext.current
     var profile by remember { mutableStateOf(DriverRepository.currentSession(context)) }
     var tab by remember { mutableStateOf(AppTab.Inicio) }
-    var online by remember { mutableStateOf(false) }
+    var online by remember { mutableStateOf(DriverRepository.isLocallyOnline(context)) }
     var pendingRide by remember { mutableStateOf<DriverRide?>(null) }
     var activeRide by remember { mutableStateOf<DriverRide?>(null) }
     var history by remember { mutableStateOf<List<DriverHistory>>(emptyList()) }
@@ -175,6 +175,13 @@ fun DriverHomeScreen(
 
     LaunchedEffect(pendingRide?.id, online) {
         if (online && pendingRide != null) AppAlertPlayer.playNewRide(context)
+    }
+
+    LaunchedEffect(profile?.id) {
+        if (profile != null && DriverRepository.isLocallyOnline(context)) {
+            online = true
+            onGoOnline()
+        }
     }
 
     if (profile == null) {
@@ -346,91 +353,159 @@ private fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF190622), Color(0xFF07040B))))
-            .padding(18.dp)
+            .background(Brush.verticalGradient(listOf(Color(0xFF07090D), Color(0xFF101318), Color(0xFF050607))))
     ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(Lime.copy(alpha = 0.14f), radius = size.width * 0.42f, center = Offset(size.width * 0.08f, size.height * 0.08f))
+            drawCircle(Purple.copy(alpha = 0.16f), radius = size.width * 0.36f, center = Offset(size.width * 0.92f, size.height * 0.12f))
+            drawCircle(Color.White.copy(alpha = 0.05f), radius = size.width * 0.55f, center = Offset(size.width * 0.50f, size.height * 1.05f))
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 22.dp),
             verticalArrangement = Arrangement.Center
         ) {
-            BrandHero()
-            Spacer(Modifier.height(18.dp))
-            GlassCard(padding = 18) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ModeButton("Entrar", mode == "login", Modifier.weight(1f)) { mode = "login" }
-                    ModeButton("Cadastrar", mode == "cadastro", Modifier.weight(1f)) { mode = "cadastro" }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Brush.linearGradient(listOf(Lime, Color(0xFF2F8D19))))
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("R", color = Color(0xFF071007), fontSize = 25.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 }
-                Spacer(Modifier.height(18.dp))
-
-                if (mode == "login") {
-                    SectionTitle("Acesso do entregador", "Use CPF ou telefone. A sessão fica salva neste aparelho.")
-                    Spacer(Modifier.height(14.dp))
-                    AppField(login, { login = it }, "CPF ou telefone", KeyboardType.Number)
-                    Spacer(Modifier.height(10.dp))
-                    AppField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = "Senha",
-                        keyboardType = KeyboardType.Password,
-                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailing = if (showPassword) "ocultar" else "ver",
-                        onTrailing = { showPassword = !showPassword }
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    PrimaryButton(
-                        text = "Entrar",
-                        enabled = !loading,
-                        loading = loading,
-                        onClick = { onLogin(login, password) { loading = it } }
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Entregador antigo sem senha entra uma vez e cria a senha no primeiro acesso.",
-                        color = Muted2,
-                        fontSize = 12.sp,
-                        fontFamily = AppFont
-                    )
-                } else {
-                    SectionTitle("Cadastro de entregador", "Envie seus dados. O gestor aprova antes de liberar pedidos.")
-                    Spacer(Modifier.height(14.dp))
-                    AppField(name, { name = it }, "Nome completo")
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        AppField(cpf, { cpf = it }, "CPF", KeyboardType.Number, modifier = Modifier.weight(1f))
-                        AppField(phone, { phone = it }, "WhatsApp", KeyboardType.Phone, modifier = Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        AppField(vehicle, { vehicle = it }, "Veículo", modifier = Modifier.weight(1f))
-                        AppField(plate, { plate = it.uppercase() }, "Placa", modifier = Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    AppField(pix, { pix = it }, "Chave Pix")
-                    Spacer(Modifier.height(10.dp))
-                    AppField(bank, { bank = it }, "Banco / recebimento")
-                    Spacer(Modifier.height(10.dp))
-                    AppField(newPassword, { newPassword = it }, "Criar senha", KeyboardType.Password, PasswordVisualTransformation())
-                    Spacer(Modifier.height(14.dp))
-                    PrimaryButton(
-                        text = "Enviar cadastro",
-                        enabled = !loading,
-                        loading = loading,
-                        onClick = { onRegister(DriverRegistrationRequest(name, cpf, phone, newPassword, vehicle, plate, pix, bank)) { loading = it } }
-                    )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Rodrigues Entregador", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    Text("Painel do motoboy", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 }
-
-                if (error.isNotBlank()) {
-                    Spacer(Modifier.height(12.dp))
-                    StatusMessage(error, isError = true)
-                }
-                if (notice.isNotBlank()) {
-                    Spacer(Modifier.height(12.dp))
-                    StatusMessage(notice, isError = false)
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(LimeDark)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("NATIVO", color = Lime, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 }
             }
+
             Spacer(Modifier.height(18.dp))
+
+            GlassCard(padding = 0, borderColor = Color.White.copy(alpha = 0.14f)) {
+                Column(Modifier.padding(18.dp)) {
+                    Text(
+                        if (mode == "login") "Entrar para receber corridas" else "Cadastro em análise pelo gestor",
+                        color = Ink,
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = AppFont,
+                        lineHeight = 28.sp
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        if (mode == "login") "Fique disponível e receba a oferta urgente em tela cheia." else "Preencha os dados do entregador. A loja libera após conferir.",
+                        color = Muted,
+                        fontSize = 13.sp,
+                        fontFamily = AppFont
+                    )
+
+                    Spacer(Modifier.height(15.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.fillMaxWidth()) {
+                        ModeButton("Entrar", mode == "login", Modifier.weight(1f)) { mode = "login" }
+                        ModeButton("Cadastrar", mode == "cadastro", Modifier.weight(1f)) { mode = "cadastro" }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        StatusPill("Alerta urgente", true, Modifier.weight(1f))
+                        StatusPill("Rota no mapa", true, Modifier.weight(1f))
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+
+                    if (mode == "login") {
+                        AppField(login, { login = it }, "CPF ou telefone", KeyboardType.Number)
+                        Spacer(Modifier.height(10.dp))
+                        AppField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = "Senha",
+                            keyboardType = KeyboardType.Password,
+                            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailing = if (showPassword) "ocultar" else "ver",
+                            onTrailing = { showPassword = !showPassword }
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        PrimaryButton(
+                            text = "Entrar e ficar pronto",
+                            enabled = !loading,
+                            loading = loading,
+                            onClick = { onLogin(login, password) { loading = it } }
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Card(colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.06f)), shape = RoundedCornerShape(18.dp)) {
+                            Text(
+                                "Entregador antigo sem senha entra uma vez e cria a senha no primeiro acesso.",
+                                color = Muted,
+                                fontSize = 12.sp,
+                                fontFamily = AppFont,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    } else {
+                        AppField(name, { name = it }, "Nome completo")
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            AppField(cpf, { cpf = it }, "CPF", KeyboardType.Number, modifier = Modifier.weight(1f))
+                            AppField(phone, { phone = it }, "WhatsApp", KeyboardType.Phone, modifier = Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            AppField(vehicle, { vehicle = it }, "Veículo", modifier = Modifier.weight(1f))
+                            AppField(plate, { plate = it.uppercase() }, "Placa", modifier = Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        AppField(pix, { pix = it }, "Chave Pix")
+                        Spacer(Modifier.height(10.dp))
+                        AppField(bank, { bank = it }, "Banco / recebimento")
+                        Spacer(Modifier.height(10.dp))
+                        AppField(newPassword, { newPassword = it }, "Criar senha", KeyboardType.Password, PasswordVisualTransformation())
+                        Spacer(Modifier.height(14.dp))
+                        PrimaryButton(
+                            text = "Enviar cadastro",
+                            enabled = !loading,
+                            loading = loading,
+                            onClick = { onRegister(DriverRegistrationRequest(name, cpf, phone, newPassword, vehicle, plate, pix, bank)) { loading = it } }
+                        )
+                    }
+
+                    if (error.isNotBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        StatusMessage(error, isError = true)
+                    }
+                    if (notice.isNotBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        StatusMessage(notice, isError = false)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MiniStat("Som", "Ativo", Modifier.weight(1f))
+                MiniStat("Tela cheia", "Urgente", Modifier.weight(1f))
+                MiniStat("Sessão", "Salva", Modifier.weight(1f))
+            }
         }
     }
 }
