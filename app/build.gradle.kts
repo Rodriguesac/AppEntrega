@@ -14,7 +14,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 55
-        versionName = "5.3.3-corrige-radar"
+        versionName = "5.4.0"
     }
 
     buildFeatures { compose = true }

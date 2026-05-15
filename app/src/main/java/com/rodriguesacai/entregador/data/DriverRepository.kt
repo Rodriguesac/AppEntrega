@@ -134,7 +134,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.3.2-aguarda-loja",
+            "appVersion" to "5.4.0-torre-v9-4",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -177,7 +177,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.3.2-aguarda-loja"
+                "appVersion" to "5.4.0-torre-v9-4"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -217,7 +217,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.3.2-aguarda-loja"
+                "appVersion" to "5.4.0-torre-v9-4"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -256,7 +256,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.3.2-aguarda-loja",
+                "appVersion" to "5.4.0-torre-v9-4",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -358,7 +358,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.3.2-aguarda-loja"
+                "appVersion" to "5.4.0-torre-v9-4"
             ),
             SetOptions.merge()
         )
@@ -380,7 +380,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.3.2-aguarda-loja"
+            "appVersion" to "5.4.0-torre-v9-4"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -411,24 +411,43 @@ object DriverRepository {
         val profile = currentSession(context) ?: return null
         val state = mutableMapOf<String, List<DriverRide>>()
         fun emit() {
-            val ride = MISSION_COLLECTIONS.flatMap { state[it].orEmpty() }
+            val ride = state.values.flatten()
+                .distinctBy { "${it.collectionName}:${it.id}" }
                 .firstOrNull { it.status == "pending" }
             onRide(ride)
         }
-        val registrations = MISSION_COLLECTIONS.map { collectionName ->
-            db.collection(collectionName)
-                .limit(120)
-                .addSnapshotListener { snap, err ->
-                    if (err != null) {
-                        onError(err.message ?: "Erro ao ouvir $collectionName.")
-                        return@addSnapshotListener
+
+        val registrations = mutableListOf<ListenerRegistration>()
+        MISSION_COLLECTIONS.forEach { collectionName ->
+            val base = db.collection(collectionName)
+            val queries = listOf(
+                base.limit(250),
+                base.whereEqualTo("status", "BUSCANDO_ENTREGADOR").limit(80),
+                base.whereEqualTo("statusEntrega", "BUSCANDO_ENTREGADOR").limit(80),
+                base.whereEqualTo("statusOfertaEntregador", "OFERTA").limit(80),
+                base.whereEqualTo("statusEntregador", "OFERTA").limit(80),
+                base.whereEqualTo("statusMotoboy", "OFERTA").limit(80),
+                base.whereEqualTo("liberadoParaEntregador", true).limit(80),
+                base.whereEqualTo("ofertaLiberada", true).limit(80)
+            )
+
+            queries.forEachIndexed { index, firestoreQuery ->
+                val key = "$collectionName:$index"
+                registrations.add(
+                    firestoreQuery.addSnapshotListener { snap, err ->
+                        if (err != null) {
+                            onError(err.message ?: "Erro ao ouvir $collectionName.")
+                            return@addSnapshotListener
+                        }
+                        val rides = snap?.documents.orEmpty()
+                            .mapNotNull { doc -> doc.toDriverRide(collectionName) }
+                            .filter { ride -> ride.status == "pending" && ride.canBeOfferedTo(profile.id) }
+                            .distinctBy { it.id }
+                        state[key] = rides
+                        emit()
                     }
-                    val rides = snap?.documents.orEmpty()
-                        .mapNotNull { doc -> doc.toDriverRide(collectionName) }
-                        .filter { ride -> ride.status == "pending" && ride.canBeOfferedTo(profile.id) }
-                    state[collectionName] = rides
-                    emit()
-                }
+                )
+            }
         }
         return CompositeListenerRegistration(registrations)
     }
@@ -441,24 +460,39 @@ object DriverRepository {
         val profile = currentSession(context) ?: return null
         val state = mutableMapOf<String, List<DriverRide>>()
         fun emit() {
-            val active = MISSION_COLLECTIONS.flatMap { state[it].orEmpty() }
+            val active = state.values.flatten()
+                .distinctBy { "${it.collectionName}:${it.id}" }
                 .firstOrNull { it.status in listOf("accepted", "pickup", "delivering") }
             onRide(active)
         }
-        val registrations = MISSION_COLLECTIONS.map { collectionName ->
-            db.collection(collectionName)
-                .limit(120)
-                .addSnapshotListener { snap, err ->
-                    if (err != null) {
-                        onError(err.message ?: "Erro ao ouvir $collectionName.")
-                        return@addSnapshotListener
+
+        val registrations = mutableListOf<ListenerRegistration>()
+        MISSION_COLLECTIONS.forEach { collectionName ->
+            val base = db.collection(collectionName)
+            val queries = listOf(
+                base.limit(250),
+                base.whereEqualTo("entregadorUid", profile.id).limit(80),
+                base.whereEqualTo("entregadorId", profile.id).limit(80),
+                base.whereEqualTo("driverId", profile.id).limit(80),
+                base.whereEqualTo("uidEntregador", profile.id).limit(80)
+            )
+            queries.forEachIndexed { index, firestoreQuery ->
+                val key = "$collectionName:$index"
+                registrations.add(
+                    firestoreQuery.addSnapshotListener { snap, err ->
+                        if (err != null) {
+                            onError(err.message ?: "Erro ao ouvir $collectionName.")
+                            return@addSnapshotListener
+                        }
+                        val rides = snap?.documents.orEmpty()
+                            .mapNotNull { doc -> doc.toDriverRide(collectionName) }
+                            .filter { ride -> ride.matchesDriver(profile.id) && ride.status in listOf("accepted", "pickup", "delivering") }
+                            .distinctBy { it.id }
+                        state[key] = rides
+                        emit()
                     }
-                    val rides = snap?.documents.orEmpty()
-                        .mapNotNull { doc -> doc.toDriverRide(collectionName) }
-                        .filter { ride -> ride.matchesDriver(profile.id) && ride.status in listOf("accepted", "pickup", "delivering") }
-                    state[collectionName] = rides
-                    emit()
-                }
+                )
+            }
         }
         return CompositeListenerRegistration(registrations)
     }
@@ -933,7 +967,12 @@ data class DriverRide(
 private val OFFER_STATUSES = setOf(
     "BUSCANDO_ENTREGADOR",
     "OFERTA",
+    "OFERTA_REAL",
     "OFERTA_ENTREGADOR",
+    "TOCANDO",
+    "CHAMANDO",
+    "RADAR",
+    "RADAR_ATIVO",
     "AGUARDANDO_ENTREGADOR",
     "BUSCANDO_MOTOBOY",
     "LIBERADO_PARA_ENTREGA",
@@ -948,7 +987,12 @@ private val ROUTE_OFFER_STATUSES = OFFER_STATUSES
 private val PEDIDO_OFFER_STATUSES = setOf(
     "BUSCANDO_ENTREGADOR",
     "OFERTA",
+    "OFERTA_REAL",
     "OFERTA_ENTREGADOR",
+    "TOCANDO",
+    "CHAMANDO",
+    "RADAR",
+    "RADAR_ATIVO",
     "AGUARDANDO_ENTREGADOR",
     "BUSCANDO_MOTOBOY",
     "LIBERADO_PARA_ENTREGA",
@@ -1154,8 +1198,14 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val receivedBy = anyString("recebidoPor", "quemRecebe", "recebedor", "paymentReceiver").ifBlank { "Loja/App" }
     val amountToCollect = anyDouble("valorReceberCliente", "valorCobrarCliente", "trocoValorCobrar", "cobrarDoCliente") ?: clientTotal
     val storeReturn = if (receivedBy.upperOrTrim() in setOf("ENTREGADOR", "MOTOBOY", "DRIVER")) (amountToCollect - machineFee - number).coerceAtLeast(0.0) else 0.0
-    val assigned = anyString("entregadorId", "entregadorUid", "motoboyId", "uidEntregador", "driverId", "assignedDriverId")
-    val target = anyString("entregadorAtualOferta", "motoboyAtualOferta", "targetDriverId")
+    val assigned = anyString(
+        "entregadorId", "entregadorUid", "motoboyId", "motoboyUid", "uidEntregador",
+        "driverId", "assignedDriverId", "pilotoId", "courierId"
+    )
+    val target = anyString(
+        "entregadorAtualOferta", "motoboyAtualOferta", "targetDriverId", "ofertaParaEntregadorId",
+        "ofertaDriverId", "driverAtualOferta", "pilotoAtualOferta", "entregadorSelecionadoId"
+    )
     val rejected = anyStringList("rejeitados", "rejeitadoPor", "rejeitadosIds", "entregadoresRejeitaram", "rejectedDriverIds")
     val expired = anyStringList("expiredDriverIds", "expiradoPara", "expirados")
     val pickup = anyString("lojaEndereco", "pickup", "pickupAddress", "enderecoLoja", "nomeLoja", "lojaNome")
