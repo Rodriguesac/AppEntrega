@@ -1,23 +1,38 @@
 name: Build APK Entregador V5.2
+
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Java
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Conferir arquivos Gradle
+        run: |
+          echo "===== build.gradle.kts raiz ====="
+          cat build.gradle.kts
+          echo "===== app/build.gradle.kts ====="
+          cat app/build.gradle.kts
+          echo "===== gradle.properties ====="
+          cat gradle.properties
+
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: gradle --no-daemon clean assembleDebug --rerun-tasks
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
