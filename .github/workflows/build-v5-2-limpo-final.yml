@@ -1,4 +1,4 @@
-name: BUILD APK V5.2 CLEAN
+name: BUILD APK V5.2 LIMPO FINAL
 
 on:
   workflow_dispatch:
@@ -23,18 +23,18 @@ jobs:
         with:
           cache-disabled: true
 
-      - name: Conferir arquivos limpos
+      - name: Conferir projeto limpo
         run: |
-          echo "===== app/src/main/java ====="
+          echo "===== Kotlin files ====="
           find app/src/main/java -type f | sort
           echo "===== app/build.gradle.kts ====="
           cat app/build.gradle.kts
 
-      - name: Build Debug APK limpo
+      - name: Build Debug APK
         run: gradle --no-daemon clean :app:assembleDebug --rerun-tasks --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: rodrigues-entregador-v5-2-clean-debug
+          name: rodrigues-entregador-v5-2-limpo-final-debug
           path: app/build/outputs/apk/debug/*.apk
