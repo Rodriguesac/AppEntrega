@@ -6,81 +6,111 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
+import com.rodriguesacai.entregador.MainActivity
 import com.rodriguesacai.entregador.R
-import com.rodriguesacai.entregador.UrgentOfferActivity
+import com.rodriguesacai.entregador.UrgentRideActivity
 
 object NotificationHelper {
-    const val CHANNEL_URGENT = "corridas_urgentes"
-    const val CHANNEL_SERVICE = "servico_entregador"
+    const val CHANNEL_ONLINE = "driver_online"
+    const val CHANNEL_URGENT = "urgent_ride_v52_produto"
 
-    fun ensureChannels(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    fun createChannels(context: Context) {
+        if (Build.VERSION.SDK_INT < 26) return
         val manager = context.getSystemService(NotificationManager::class.java)
+
+        val online = NotificationChannel(
+            CHANNEL_ONLINE,
+            "Entregador online",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Serviço ativo enquanto o entregador está disponível"
+        }
 
         val urgent = NotificationChannel(
             CHANNEL_URGENT,
-            "Corridas urgentes",
+            "Nova corrida urgente V5.2",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Alertas de novas corridas"
-            enableVibration(true)
+            description = "Alerta urgente de nova rota"
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 700)
+            setSound(
+                Uri.parse("android.resource://${context.packageName}/${R.raw.alerta}"),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
         }
-
-        val service = NotificationChannel(
-            CHANNEL_SERVICE,
-            "Serviço do entregador",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Mantém o entregador disponível no radar"
-        }
-
+        manager.createNotificationChannel(online)
         manager.createNotificationChannel(urgent)
-        manager.createNotificationChannel(service)
     }
 
-    fun serviceNotification(context: Context): Notification {
-        ensureChannels(context)
-        return NotificationCompat.Builder(context, CHANNEL_SERVICE)
-            .setSmallIcon(R.drawable.ic_stat_delivery)
+    fun onlineNotification(context: Context): Notification {
+        val pending = PendingIntent.getActivity(
+            context,
+            1,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(context, CHANNEL_ONLINE)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Rodrigues Entregador")
-            .setContentText("Radar de corridas ativo")
+            .setContentText("Online e aguardando novas corridas.")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(pending)
             .build()
     }
 
-    fun urgentNotification(context: Context, title: String, body: String): Notification {
-        ensureChannels(context)
-        val intent = Intent(context, UrgentOfferActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    fun urgentRideNotification(
+        context: Context,
+        rideId: String,
+        value: String,
+        distance: String,
+        duration: String,
+        pickup: String,
+        dropoff: String
+    ) {
+        val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.alerta}")
+        AppAlertPlayer.playNewRide(context)
 
-        val pendingIntent = PendingIntent.getActivity(
+        val fullScreenIntent = Intent(context, UrgentRideActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("rideId", rideId)
+            putExtra("value", value)
+            putExtra("distance", distance)
+            putExtra("duration", duration)
+            putExtra("pickup", pickup)
+            putExtra("dropoff", dropoff)
+        }
+        val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
-            1001,
-            intent,
+            2,
+            fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(context, CHANNEL_URGENT)
-            .setSmallIcon(R.drawable.ic_stat_delivery)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true)
+        val notification = NotificationCompat.Builder(context, CHANNEL_URGENT)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Nova corrida urgente V5.2 disponível")
+            .setContentText("$value • $distance • $duration")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setSound(soundUri)
+            .setVibrate(longArrayOf(0, 500, 200, 500, 200, 700))
             .build()
-    }
 
-    fun showUrgent(context: Context, title: String, body: String) {
-        runCatching {
-            NotificationManagerCompat.from(context).notify(520, urgentNotification(context, title, body))
-        }
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(1001, notification)
+        runCatching { context.startActivity(fullScreenIntent) }
     }
 }
