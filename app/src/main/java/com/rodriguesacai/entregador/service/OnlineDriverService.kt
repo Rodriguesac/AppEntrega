@@ -48,7 +48,8 @@ class OnlineDriverService : Service() {
     override fun onDestroy() {
         pendingRideListener?.remove()
         pendingRideListener = null
-        DriverRepository.setOnline(this, false)
+        // Não marca offline aqui: se o Android matar/recriar o serviço, o entregador continua disponível.
+        // O offline real é gravado quando o motoboy desliga o status no app.
         super.onDestroy()
     }
 

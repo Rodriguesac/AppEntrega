@@ -1262,7 +1262,7 @@ private fun MoreContent(
 
         GlassCard(padding = 18) {
             Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 5.3.3 • corrige radar", color = Muted2, fontSize = 12.sp)
+            Text("Versão 5.4.0 • Torre V9.4", color = Muted2, fontSize = 12.sp)
         }
     }
 }
