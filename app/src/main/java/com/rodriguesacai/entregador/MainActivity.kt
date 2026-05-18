@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         askNotificationPermissionOnly()
         setContent {
-            RodriguesNativeTheme {
+            RodriguesNativeTheme(darkTheme = AppSettings.isDarkTheme(this)) {
                 DriverHomeScreen(
                     onGoOnline = { requestLocationAndStartOnline() },
                     onGoOffline = { stopService(Intent(this, OnlineDriverService::class.java)) },

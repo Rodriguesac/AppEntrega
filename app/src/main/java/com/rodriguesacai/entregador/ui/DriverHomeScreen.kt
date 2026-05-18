@@ -71,6 +71,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardPassword
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +89,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Brightness4
+import androidx.compose.material.icons.filled.WbSunny
 import coil.compose.AsyncImage
 import com.rodriguesacai.entregador.AppSettings
 import com.rodriguesacai.entregador.PermissionStatusReader
@@ -152,6 +155,8 @@ fun DriverHomeScreen(
     var stats by remember { mutableStateOf(DriverStats()) }
     var error by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
+    var hideValues by remember { mutableStateOf(AppSettings.getHideValues(context)) }
+    var themeMode by remember { mutableStateOf(AppSettings.getThemeMode(context)) }
 
     DisposableEffect(profile?.id, online) {
         val pendingListener = if (profile != null && online) {
@@ -242,10 +247,15 @@ fun DriverHomeScreen(
         return
     }
 
+    val isLightTheme = themeMode == AppSettings.THEME_LIGHT
+    val screenBg = if (isLightTheme) Color(0xFFF6F8F3) else BgBottom
+    val topBg = if (isLightTheme) Color(0xFFEFF5E8) else BgTop
+    val navBg = if (isLightTheme) Color.White else Color(0xFF100B16)
+
     Scaffold(
-        containerColor = BgBottom,
+        containerColor = screenBg,
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF100B16), tonalElevation = 0.dp) {
+            NavigationBar(containerColor = navBg, tonalElevation = 0.dp) {
                 navItem(AppTab.Inicio, tab, "Início", Icons.Filled.Home) { tab = it }
                 navItem(AppTab.Corridas, tab, "Corridas", Icons.Filled.Route) { tab = it }
                 navItem(AppTab.Ganhos, tab, "Ganhos", Icons.Filled.AccountBalanceWallet) { tab = it }
@@ -258,7 +268,7 @@ fun DriverHomeScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Brush.verticalGradient(listOf(BgTop, BgBottom)))
+                .background(Brush.verticalGradient(listOf(topBg, screenBg)))
         ) {
             when (tab) {
                 AppTab.Inicio -> HomeContent(
@@ -267,6 +277,11 @@ fun DriverHomeScreen(
                     pendingRide = pendingRide,
                     activeRide = activeRide,
                     stats = stats,
+                    hideValues = hideValues,
+                    onToggleValues = {
+                        hideValues = !hideValues
+                        AppSettings.setHideValues(context, hideValues)
+                    },
                     error = error,
                     onToggleOnline = { checked ->
                         online = checked
@@ -313,6 +328,16 @@ fun DriverHomeScreen(
                 AppTab.Conta -> AccountContent(
                     profile = profile!!,
                     online = online,
+                    hideValues = hideValues,
+                    themeMode = themeMode,
+                    onToggleValues = {
+                        hideValues = !hideValues
+                        AppSettings.setHideValues(context, hideValues)
+                    },
+                    onThemeChanged = {
+                        themeMode = it
+                        AppSettings.setThemeMode(context, it)
+                    },
                     onProfileChanged = { profile = DriverRepository.currentSession(context) ?: profile },
                     onOpenNotificationSettings = onOpenNotificationSettings,
                     onOpenLocationSettings = onOpenLocationSettings,
@@ -367,7 +392,8 @@ private fun LoginScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center
         ) {
-            BrandHero()
+            Text("RODRIGUES ENTREGADOR", color = Lime, fontSize = 22.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
+            Text("Acesso do motoboy", color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
             Spacer(Modifier.height(18.dp))
             GlassCard(padding = 18) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -377,7 +403,7 @@ private fun LoginScreen(
                 Spacer(Modifier.height(18.dp))
 
                 if (mode == "login") {
-                    SectionTitle("Acesso do entregador", "Use CPF ou telefone. A sessão fica salva neste aparelho.")
+                    SectionTitle("Entrar", "CPF ou telefone e senha.")
                     Spacer(Modifier.height(14.dp))
                     AppField(login, { login = it }, "CPF ou telefone", KeyboardType.Number)
                     Spacer(Modifier.height(10.dp))
@@ -573,6 +599,8 @@ private fun HomeContent(
     pendingRide: DriverRide?,
     activeRide: DriverRide?,
     stats: DriverStats,
+    hideValues: Boolean,
+    onToggleValues: () -> Unit,
     error: String,
     onToggleOnline: (Boolean) -> Unit,
     onAccept: (DriverRide) -> Unit,
@@ -608,6 +636,8 @@ private fun HomeContent(
             profile = profile,
             stats = stats,
             operational = operational,
+            hideValues = hideValues,
+            onToggleValues = onToggleValues,
             onStatusClick = {
                 if (operational.kind == AvailabilityKind.Restricao) {
                     if (online) onToggleOnline(false)
@@ -617,7 +647,7 @@ private fun HomeContent(
             }
         )
         if (error.isNotBlank()) StatusMessage(error, true)
-        EarningsStrip(stats)
+        EarningsStrip(stats, hideValues)
         when {
             activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
             pendingRide != null && online -> IncomingRideCard(pendingRide, onAccept, onReject, onExpire)
@@ -634,6 +664,8 @@ private fun DriverHeader(
     profile: DriverProfile,
     stats: DriverStats,
     operational: OperationalStatus,
+    hideValues: Boolean,
+    onToggleValues: () -> Unit,
     onStatusClick: () -> Unit
 ) {
     GlassCard(padding = 16) {
@@ -644,27 +676,37 @@ private fun DriverHeader(
                 Text(
                     "Olá, ${profile.name.shortName()}",
                     color = Ink,
-                    fontSize = 24.sp,
+                    fontSize = 23.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontFamily = AppFont
                 )
-                Text(
-                    operational.message.ifBlank { "Hoje ${DriverRepository.formatCurrency(stats.totalToday)}" },
-                    color = if (operational.kind == AvailabilityKind.Restricao) Danger else if (operational.kind == AvailabilityKind.Disponivel) Lime else Muted2,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontFamily = AppFont
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Hoje ${if (hideValues) "••••" else DriverRepository.formatCurrency(stats.totalToday)}",
+                        color = Lime,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontFamily = AppFont
+                    )
+                    TextButton(onClick = onToggleValues) {
+                        Icon(
+                            if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = null,
+                            tint = Muted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         Button(
             onClick = onStatusClick,
-            modifier = Modifier.fillMaxWidth().height(58.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(22.dp),
             colors = ButtonDefaults.buttonColors(containerColor = operational.buttonColor, contentColor = operational.textColor)
         ) {
@@ -674,9 +716,9 @@ private fun DriverHeader(
 }
 
 @Composable
-private fun EarningsStrip(stats: DriverStats) {
+private fun EarningsStrip(stats: DriverStats, hideValues: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        MiniStat("Hoje", DriverRepository.formatCurrency(stats.totalToday), Modifier.weight(1.15f))
+        MiniStat("Hoje", if (hideValues) "••••" else DriverRepository.formatCurrency(stats.totalToday), Modifier.weight(1.15f))
         MiniStat("Corridas", stats.finishedCount.toString(), Modifier.weight(.85f))
         MiniStat("Aceitação", "${stats.score}%", Modifier.weight(.9f))
     }
@@ -716,7 +758,7 @@ private fun WaitingCard(status: OperationalStatus) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Aguardando corridas", color = Ink, fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text(status.message.ifBlank { "Disponível para receber pedidos" }, color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Pronto para receber pedidos", color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
             }
             RadarPulse(Lime, slow = false)
         }
@@ -732,6 +774,7 @@ private fun IncomingRideCard(
 ) {
     var seconds by remember(ride.id) { mutableStateOf(60) }
     var rejectReason by remember(ride.id) { mutableStateOf("") }
+    var detailsOpen by remember(ride.id) { mutableStateOf(false) }
     LaunchedEffect(ride.id) {
         seconds = 60
         while (seconds > 0) {
@@ -742,51 +785,82 @@ private fun IncomingRideCard(
     }
 
     GlassCard(padding = 18, borderColor = Lime.copy(alpha = .35f)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("OFERTA URGENTE", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                Text(ride.value, color = Ink, fontSize = 44.sp, fontWeight = FontWeight.Black)
-                Text("${ride.distance} • ${ride.duration} • ${ride.stops} paradas", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        if (!detailsOpen) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("NOVA CORRIDA", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    Text(ride.value, color = Ink, fontSize = 42.sp, fontWeight = FontWeight.Black)
+                    Text("${ride.distance} • ${ride.duration}", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+                CountdownBadge(seconds)
             }
-            CountdownBadge(seconds)
-        }
-        Spacer(Modifier.height(12.dp))
-        StopLine("COLETA", ride.pickup, Lime)
-        StopLine("ENTREGA", ride.neighborhood.ifBlank { "Bairro da entrega" }, Purple2)
-        Text("Endereço completo da entrega será liberado após aceitar.", color = Muted2, fontSize = 12.sp)
-        Spacer(Modifier.height(12.dp))
-        RealDeliveryMap(
-            title = "Rota real da oferta",
-            subtitle = "${ride.distance} • ${ride.duration}",
-            pickupAddress = ride.pickup,
-            dropoffAddress = ride.neighborhood.ifBlank { ride.dropoff },
-            pickupLat = ride.pickupLat,
-            pickupLng = ride.pickupLng,
-            dropoffLat = ride.dropoffLat,
-            dropoffLng = ride.dropoffLng
-        )
-        Spacer(Modifier.height(12.dp))
-        RideFinancialPanel(ride, compact = true)
-        Spacer(Modifier.height(14.dp))
-        Text("Motivo da recusa (opcional)", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        val reasons = listOf("Muito longe", "Valor baixo", "Ocupado", "Veículo", "Outro")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            reasons.take(3).forEach { reason ->
-                TinyChip(reason, rejectReason == reason, Modifier.weight(1f)) { rejectReason = if (rejectReason == reason) "" else reason }
+            Spacer(Modifier.height(12.dp))
+            StopLine("COLETA", ride.pickup, Lime)
+            StopLine("ENTREGA", ride.neighborhood.ifBlank { "Bairro da entrega" }, Purple2)
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { detailsOpen = true },
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Color(0xFF10200A))
+            ) {
+                Text("Ver detalhes", fontWeight = FontWeight.Black)
             }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            reasons.drop(3).forEach { reason ->
-                TinyChip(reason, rejectReason == reason, Modifier.weight(1f)) { rejectReason = if (rejectReason == reason) "" else reason }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Detalhes da corrida", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text("${ride.value} • ${ride.distance} • ${ride.duration}", color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                }
+                CountdownBadge(seconds)
             }
-            Spacer(Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = { onReject(ride, rejectReason) }, modifier = Modifier.weight(1f).height(58.dp), shape = RoundedCornerShape(18.dp)) { Text("Recusar", color = Danger, fontWeight = FontWeight.Bold) }
-            Button(onClick = { onAccept(ride) }, modifier = Modifier.weight(1.45f).height(58.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Color(0xFF10200A))) { Text("Aceitar corrida", fontWeight = FontWeight.Black) }
+            Spacer(Modifier.height(12.dp))
+            RealDeliveryMap(
+                title = "Mapa da oferta",
+                subtitle = "${ride.distance} • ${ride.duration}",
+                pickupAddress = ride.pickup,
+                dropoffAddress = ride.dropoff.ifBlank { ride.neighborhood },
+                pickupLat = ride.pickupLat,
+                pickupLng = ride.pickupLng,
+                dropoffLat = ride.dropoffLat,
+                dropoffLng = ride.dropoffLng
+            )
+            Spacer(Modifier.height(12.dp))
+            StopLine("COLETA", ride.pickup, Lime)
+            StopLine("ENTREGA", ride.dropoff.ifBlank { ride.neighborhood }, Purple2)
+            Text("Confira coleta, bairro/entrega, distância, tempo e valor antes de aceitar.", color = Muted2, fontSize = 12.sp)
+            Spacer(Modifier.height(12.dp))
+            RideFinancialPanel(ride, compact = true)
+            Spacer(Modifier.height(14.dp))
+            Text("Motivo da recusa (opcional)", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            val reasons = listOf("Muito longe", "Valor baixo", "Ocupado", "Veículo", "Outro")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                reasons.take(3).forEach { reason ->
+                    TinyChip(reason, rejectReason == reason, Modifier.weight(1f)) { rejectReason = if (rejectReason == reason) "" else reason }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                reasons.drop(3).forEach { reason ->
+                    TinyChip(reason, rejectReason == reason, Modifier.weight(1f)) { rejectReason = if (rejectReason == reason) "" else reason }
+                }
+                Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { onReject(ride, rejectReason) }, modifier = Modifier.weight(1f).height(58.dp), shape = RoundedCornerShape(18.dp)) {
+                    Text("Recusar", color = Danger, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = { onAccept(ride) },
+                    modifier = Modifier.weight(1.45f).height(58.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Color(0xFF10200A))
+                ) {
+                    Text("Aceitar corrida", fontWeight = FontWeight.Black)
+                }
+            }
         }
     }
 }
@@ -799,14 +873,29 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
         "delivering" -> "Indo para entrega"
         else -> "Corrida em andamento"
     }
-    GlassCard(padding = 18, borderColor = Purple2.copy(alpha = .40f)) {
+    val nextLabel = when (ride.status) {
+        "accepted" -> "Cheguei na coleta"
+        "pickup" -> "Pedido retirado"
+        "delivering" -> "Finalizar entrega"
+        else -> "Atualizar"
+    }
+    val nextStatus = when (ride.status) {
+        "accepted" -> "pickup"
+        "pickup" -> "delivering"
+        "delivering" -> "finished"
+        else -> "pickup"
+    }
+
+    GlassCard(padding = 18, borderColor = Lime.copy(alpha = .42f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Text("EM ANDAMENTO", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                Text(title, color = Ink, fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text("Pedido #${ride.orderCode} • ${ride.value}", color = Muted, fontSize = 14.sp)
             }
             StatusPill(ride.status.statusLabel(), true)
         }
+
         Spacer(Modifier.height(12.dp))
         RealDeliveryMap(
             title = title,
@@ -832,11 +921,7 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
             colors = ButtonDefaults.buttonColors(containerColor = Blue, contentColor = Color.White)
         ) { Text("Iniciar navegação", fontWeight = FontWeight.Black) }
         Spacer(Modifier.height(10.dp))
-        when (ride.status) {
-            "accepted" -> PrimaryButton("Cheguei na coleta") { onUpdateRide(ride, "pickup") }
-            "pickup" -> PrimaryButton("Pedido retirado") { onUpdateRide(ride, "delivering") }
-            "delivering" -> PrimaryButton("Finalizar entrega") { onUpdateRide(ride, "finished") }
-        }
+        PrimaryButton(nextLabel) { onUpdateRide(ride, nextStatus) }
     }
 }
 
@@ -997,6 +1082,10 @@ private fun HistoryRow(item: DriverHistory) {
 private fun AccountContent(
     profile: DriverProfile,
     online: Boolean,
+    hideValues: Boolean,
+    themeMode: String,
+    onToggleValues: () -> Unit,
+    onThemeChanged: (String) -> Unit,
     onProfileChanged: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenLocationSettings: () -> Unit,
@@ -1030,6 +1119,26 @@ private fun AccountContent(
             InfoLine("Conta", "Verificada")
             Spacer(Modifier.height(12.dp))
             OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(18.dp)) { Text("Sair da conta", color = Muted) }
+        }
+
+        GlassCard(padding = 18) {
+            SectionTitle("Preferências", "Tema e privacidade dos valores.")
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ModeButton("Escuro", themeMode == AppSettings.THEME_DARK, Modifier.weight(1f)) { onThemeChanged(AppSettings.THEME_DARK) }
+                ModeButton("Claro", themeMode == AppSettings.THEME_LIGHT, Modifier.weight(1f)) { onThemeChanged(AppSettings.THEME_LIGHT) }
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = onToggleValues,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF232129), contentColor = Ink)
+            ) {
+                Icon(if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, contentDescription = null, tint = Muted, modifier = Modifier.size(19.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(if (hideValues) "Mostrar valores" else "Ocultar valores", fontWeight = FontWeight.Black)
+            }
         }
 
         GlassCard(padding = 18) {

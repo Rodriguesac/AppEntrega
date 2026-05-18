@@ -22,7 +22,7 @@ class UrgentRideActivity : ComponentActivity() {
         val pickup = intent.getStringExtra("pickup") ?: "Rodrigues Açaí e Cia"
         val dropoff = intent.getStringExtra("dropoff") ?: "Endereço do cliente liberado após aceite"
         setContent {
-            RodriguesNativeTheme {
+            RodriguesNativeTheme(darkTheme = AppSettings.isDarkTheme(this)) {
                 UrgentRideScreen(
                     rideId = rideId,
                     value = value,

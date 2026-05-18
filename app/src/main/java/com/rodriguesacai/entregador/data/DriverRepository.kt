@@ -134,7 +134,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.5.0-radar-real-torre-v7-6",
+            "appVersion" to "5.6.0-ui-fluxo-urgente",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -177,7 +177,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.5.0-radar-real-torre-v7-6"
+                "appVersion" to "5.6.0-ui-fluxo-urgente"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -217,7 +217,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.5.0-radar-real-torre-v7-6"
+                "appVersion" to "5.6.0-ui-fluxo-urgente"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -256,7 +256,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.5.0-radar-real-torre-v7-6",
+                "appVersion" to "5.6.0-ui-fluxo-urgente",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -358,7 +358,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.5.0-radar-real-torre-v7-6"
+                "appVersion" to "5.6.0-ui-fluxo-urgente"
             ),
             SetOptions.merge()
         )
@@ -380,7 +380,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.5.0-radar-real-torre-v7-6"
+            "appVersion" to "5.6.0-ui-fluxo-urgente"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -480,7 +480,9 @@ object DriverRepository {
                 base.whereEqualTo("entregadorUid", profile.id).limit(80),
                 base.whereEqualTo("entregadorId", profile.id).limit(80),
                 base.whereEqualTo("driverId", profile.id).limit(80),
-                base.whereEqualTo("uidEntregador", profile.id).limit(80)
+                base.whereEqualTo("uidEntregador", profile.id).limit(80),
+                base.whereEqualTo("entregadorAtualOferta", profile.id).limit(80),
+                base.whereEqualTo("targetDriverId", profile.id).limit(80)
             )
             queries.forEachIndexed { index, firestoreQuery ->
                 val key = "$collectionName:$index"
@@ -1188,17 +1190,22 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     if (!deliveryReleasedToDriver(collectionName)) return null
 
     val rawStatus = if (collectionName == "pedidos") {
-        anyString(
-            "statusOfertaEntregador",
-            "statusEntregador",
-            "statusMotoboy",
-            "statusEntrega",
-            "statusRota",
-            "logistica.status",
-            "deliveryStatus",
-            "ofertaStatus",
-            "status"
-        )
+        val main = anyString("status").upperOrTrim()
+        if (main in ACCEPTED_STATUSES || main in PICKUP_STATUSES || main in DELIVERING_STATUSES || main in FINAL_HISTORY_STATUSES) {
+            anyString("status")
+        } else {
+            anyString(
+                "statusOfertaEntregador",
+                "statusEntregador",
+                "statusMotoboy",
+                "statusEntrega",
+                "statusRota",
+                "logistica.status",
+                "deliveryStatus",
+                "ofertaStatus",
+                "status"
+            )
+        }
     } else {
         anyString("status", "statusEntregador", "statusMotoboy", "statusOfertaEntregador")
     }.ifBlank { "" }
