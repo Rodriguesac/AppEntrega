@@ -567,6 +567,26 @@ object DriverRepository {
             }
     }
 
+    fun listenActiveCarouselBanners(
+        onBanners: (List<CarouselBanner>) -> Unit,
+        onError: (String) -> Unit
+    ): ListenerRegistration {
+        return db.collection("app_carousel_banners")
+            .limit(80)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir banners do carrossel.")
+                    return@addSnapshotListener
+                }
+                val now = System.currentTimeMillis()
+                val banners = snap?.documents.orEmpty()
+                    .map { it.toCarouselBanner() }
+                    .filter { it.active && it.isWithinValidity(now) }
+                    .sortedWith(compareBy<CarouselBanner> { it.order }.thenBy { it.title })
+                onBanners(banners)
+            }
+    }
+
     fun acceptRide(context: Context, rideId: String, onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
         val profile = currentSession(context)
         if (profile == null) {
@@ -1055,6 +1075,32 @@ object DriverRepository {
         }
     }
 
+    private fun DocumentSnapshot.toCarouselBanner(): CarouselBanner {
+        val startsAt = anyTimestamp("startsAt", "inicioEm", "vigenciaInicio", "validFrom")?.toDate()?.time
+        val endsAt = anyTimestamp("endsAt", "fimEm", "vigenciaFim", "validUntil")?.toDate()?.time
+        val activeValue = get("active")
+        val ativoValue = get("ativo")
+        val active = when {
+            activeValue is Boolean -> activeValue
+            ativoValue is Boolean -> ativoValue
+            else -> anyString("status").upperOrTrim() !in setOf("INATIVO", "INACTIVE", "DESATIVADO")
+        }
+        return CarouselBanner(
+            id = id,
+            title = anyString("title", "titulo").ifBlank { "Aviso da operação" },
+            description = anyString("description", "descricao", "subtitulo").ifBlank { "Toque para ver as informações do gestor." },
+            imageUrl = anyString("imageUrl", "imagemUrl", "urlImagem", "cloudinaryUrl"),
+            badge = anyString("badge", "etiqueta", "categoria").ifBlank { "UP ENTREGAS" },
+            buttonText = anyString("buttonText", "textoBotao", "cta").ifBlank { "Saiba mais" },
+            actionType = anyString("actionType", "tipoAcao").ifBlank { "none" },
+            actionValue = anyString("actionValue", "destino", "link", "rotaInterna"),
+            order = (anyDouble("order", "ordem", "posicao") ?: 999.0).toInt(),
+            active = active,
+            startsAtMillis = startsAt,
+            endsAtMillis = endsAt
+        )
+    }
+
     private fun String.onlyDigits(): String = filter { it.isDigit() }
 
     private fun maskCpf(digits: String): String {
@@ -1066,6 +1112,27 @@ object DriverRepository {
 private class CompositeListenerRegistration(private val listeners: List<ListenerRegistration>) : ListenerRegistration {
     override fun remove() {
         listeners.forEach { it.remove() }
+    }
+}
+
+data class CarouselBanner(
+    val id: String = "",
+    val title: String = "",
+    val description: String = "",
+    val imageUrl: String = "",
+    val badge: String = "",
+    val buttonText: String = "",
+    val actionType: String = "none",
+    val actionValue: String = "",
+    val order: Int = 999,
+    val active: Boolean = true,
+    val startsAtMillis: Long? = null,
+    val endsAtMillis: Long? = null
+) {
+    fun isWithinValidity(nowMillis: Long): Boolean {
+        val startsOk = startsAtMillis == null || startsAtMillis <= nowMillis
+        val endsOk = endsAtMillis == null || endsAtMillis >= nowMillis
+        return startsOk && endsOk
     }
 }
 

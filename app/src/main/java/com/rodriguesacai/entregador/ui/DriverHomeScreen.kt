@@ -34,6 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -46,6 +48,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -64,10 +67,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -79,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.History
@@ -94,6 +100,7 @@ import coil.compose.AsyncImage
 import com.rodriguesacai.entregador.AppSettings
 import com.rodriguesacai.entregador.PermissionStatusReader
 import com.rodriguesacai.entregador.RodriguesFonts
+import com.rodriguesacai.entregador.data.CarouselBanner
 import com.rodriguesacai.entregador.data.DriverHistory
 import com.rodriguesacai.entregador.data.DriverProfile
 import com.rodriguesacai.entregador.data.DriverRegistrationRequest
@@ -121,6 +128,62 @@ private val Muted2 = Color(0xFF8C8797)
 private val Danger = Color(0xFFFF4D6D)
 private val Warning = Color(0xFFFFB020)
 private val Blue = Color(0xFF1677FF)
+
+private data class DriverPalette(
+    val screenTop: Color,
+    val screenBottom: Color,
+    val card: Color,
+    val cardAlt: Color,
+    val chip: Color,
+    val ink: Color,
+    val muted: Color,
+    val muted2: Color,
+    val border: Color,
+    val fieldBg: Color,
+    val navBg: Color
+)
+
+@Composable
+private fun driverPalette(): DriverPalette {
+    val context = LocalContext.current
+    val light = AppSettings.getThemeMode(context) == AppSettings.THEME_LIGHT
+    return if (light) {
+        DriverPalette(
+            screenTop = Color(0xFFF3F8EC),
+            screenBottom = Color(0xFFF8FAF6),
+            card = Color.White,
+            cardAlt = Color(0xFFF1F6EA),
+            chip = Color(0xFFF0F5EA),
+            ink = Color(0xFF14171F),
+            muted = Color(0xFF5D6672),
+            muted2 = Color(0xFF8A93A0),
+            border = Color(0xFFE2EBDD),
+            fieldBg = Color(0xFFFFFFFF),
+            navBg = Color.White
+        )
+    } else {
+        DriverPalette(
+            screenTop = BgTop,
+            screenBottom = BgBottom,
+            card = PanelSoft,
+            cardAlt = Panel,
+            chip = Color.White.copy(alpha = .07f),
+            ink = Color.White,
+            muted = Muted,
+            muted2 = Muted2,
+            border = Color.White.copy(alpha = .10f),
+            fieldBg = Color.White.copy(alpha = .05f),
+            navBg = Color(0xFF100B16)
+        )
+    }
+}
+
+@Composable private fun uiInk(): Color = driverPalette().ink
+@Composable private fun uiMuted(): Color = driverPalette().muted
+@Composable private fun uiMuted2(): Color = driverPalette().muted2
+@Composable private fun uiCard(): Color = driverPalette().card
+@Composable private fun uiChip(): Color = driverPalette().chip
+@Composable private fun uiBorder(): Color = driverPalette().border
 
 private enum class AvailabilityKind { Disponivel, Indisponivel, Restricao, EmEntrega }
 
@@ -152,6 +215,7 @@ fun DriverHomeScreen(
     var activeRide by remember { mutableStateOf<DriverRide?>(null) }
     var history by remember { mutableStateOf<List<DriverHistory>>(emptyList()) }
     var stats by remember { mutableStateOf(DriverStats()) }
+    var carouselBanners by remember { mutableStateOf<List<CarouselBanner>>(emptyList()) }
     var error by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
     var hideValues by remember { mutableStateOf(AppSettings.getHideValues(context)) }
@@ -170,11 +234,13 @@ fun DriverHomeScreen(
         val statsListener = if (profile != null) {
             DriverRepository.listenDailyStats(context, onStats = { stats = it }, onError = { error = it })
         } else null
+        val carouselListener = DriverRepository.listenActiveCarouselBanners(onBanners = { carouselBanners = it }, onError = { error = it })
         onDispose {
             pendingListener?.remove()
             activeListener?.remove()
             historyListener?.remove()
             statsListener?.remove()
+            carouselListener.remove()
         }
     }
 
@@ -247,8 +313,8 @@ fun DriverHomeScreen(
     }
 
     val isLightTheme = themeMode == AppSettings.THEME_LIGHT
-    val screenBg = if (isLightTheme) Color(0xFFF6F8F3) else BgBottom
-    val topBg = if (isLightTheme) Color(0xFFEFF5E8) else BgTop
+    val screenBg = if (isLightTheme) Color(0xFFF8FAF6) else BgBottom
+    val topBg = if (isLightTheme) Color(0xFFF3F8EC) else BgTop
     val navBg = if (isLightTheme) Color.White else Color(0xFF100B16)
 
     Scaffold(
@@ -276,6 +342,7 @@ fun DriverHomeScreen(
                     pendingRide = pendingRide,
                     activeRide = activeRide,
                     stats = stats,
+                    carouselBanners = carouselBanners,
                     hideValues = hideValues,
                     onToggleValues = {
                         hideValues = !hideValues
@@ -302,7 +369,8 @@ fun DriverHomeScreen(
                     onUpdateRide = { ride, status ->
                         DriverRepository.updateRideStatus(context, ride.id, status, onDone = { }, onError = { error = it })
                     },
-                    onOpenNavigator = onOpenNavigator
+                    onOpenNavigator = onOpenNavigator,
+                    onOpenTab = { tab = it }
                 )
                 AppTab.Corridas -> RidesContent(
                     pendingRide = pendingRide,
@@ -392,7 +460,7 @@ private fun LoginScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text("RODRIGUES ENTREGADOR", color = Lime, fontSize = 22.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
-            Text("Acesso do motoboy", color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
+            Text("Acesso do motoboy", color = uiMuted(), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
             Spacer(Modifier.height(18.dp))
             GlassCard(padding = 18) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -425,7 +493,7 @@ private fun LoginScreen(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         "Entregador antigo sem senha entra uma vez e cria a senha no primeiro acesso.",
-                        color = Muted2,
+                        color = uiMuted2(),
                         fontSize = 12.sp,
                         fontFamily = AppFont
                     )
@@ -488,7 +556,7 @@ private fun BrandHero() {
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Rodrigues Entregador", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Rodrigues Entregador", color = uiInk(), fontSize = 25.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text("Operação nativa para motoboys", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
             }
         }
@@ -522,14 +590,14 @@ private fun FirstPasswordScreen(profile: DriverProfile, onSaved: () -> Unit, onL
                 Avatar(profile.name)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Crie sua senha", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
-                    Text(profile.name, color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Crie sua senha", color = uiInk(), fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text(profile.name, color = uiMuted(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Spacer(Modifier.height(16.dp))
             Text(
                 "Este entregador já existia no gestor. Para segurança, crie uma senha antes de receber corridas.",
-                color = Muted,
+                color = uiMuted(),
                 fontSize = 14.sp
             )
             Spacer(Modifier.height(14.dp))
@@ -568,7 +636,7 @@ private fun FirstPasswordScreen(profile: DriverProfile, onSaved: () -> Unit, onL
             )
             Spacer(Modifier.height(10.dp))
             OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(18.dp)) {
-                Text("Sair", color = Muted)
+                Text("Sair", color = uiMuted())
             }
         }
     }
@@ -582,11 +650,11 @@ private fun RowScope.navItem(item: AppTab, selected: AppTab, label: String, icon
         icon = { Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp)) },
         label = { Text(label, fontSize = 10.sp, fontFamily = AppFont, fontWeight = if (selected == item) FontWeight.Black else FontWeight.SemiBold) },
         colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = Ink,
-            selectedTextColor = Ink,
-            indicatorColor = Purple,
-            unselectedIconColor = Muted2,
-            unselectedTextColor = Muted2
+            selectedIconColor = uiInk(),
+            selectedTextColor = uiInk(),
+            indicatorColor = Lime,
+            unselectedIconColor = uiMuted2(),
+            unselectedTextColor = uiMuted2()
         )
     )
 }
@@ -598,6 +666,7 @@ private fun HomeContent(
     pendingRide: DriverRide?,
     activeRide: DriverRide?,
     stats: DriverStats,
+    carouselBanners: List<CarouselBanner>,
     hideValues: Boolean,
     onToggleValues: () -> Unit,
     error: String,
@@ -606,7 +675,8 @@ private fun HomeContent(
     onReject: (DriverRide, String) -> Unit,
     onExpire: (DriverRide) -> Unit,
     onUpdateRide: (DriverRide, String) -> Unit,
-    onOpenNavigator: (pickup: String, dropoff: String) -> Unit
+    onOpenNavigator: (pickup: String, dropoff: String) -> Unit,
+    onOpenTab: (AppTab) -> Unit
 ) {
     val context = LocalContext.current
     var operational by remember { mutableStateOf(readOperationalStatus(context, profile, online, activeRide)) }
@@ -646,7 +716,11 @@ private fun HomeContent(
             }
         )
         if (error.isNotBlank()) StatusMessage(error, true)
-        EarningsStrip(stats, hideValues)
+        TodaySummaryCard(stats, hideValues, onToggleValues)
+        if (activeRide == null && pendingRide == null) {
+            CourierCarouselSection(carouselBanners)
+            QuickActionsGrid(onOpenTab)
+        }
         when {
             activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
             pendingRide != null && online -> IncomingRideCard(pendingRide, onAccept, onReject, onExpire)
@@ -674,7 +748,7 @@ private fun DriverHeader(
             Column(Modifier.weight(1f)) {
                 Text(
                     "Olá, ${profile.name.shortName()}",
-                    color = Ink,
+                    color = uiInk(),
                     fontSize = 23.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
@@ -695,7 +769,7 @@ private fun DriverHeader(
                         Icon(
                             if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                             contentDescription = null,
-                            tint = Muted,
+                            tint = uiMuted(),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -724,15 +798,168 @@ private fun EarningsStrip(stats: DriverStats, hideValues: Boolean) {
 }
 
 @Composable
+private fun TodaySummaryCard(stats: DriverStats, hideValues: Boolean, onToggleValues: () -> Unit) {
+    GlassCard(padding = 16) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Ganhos de hoje", color = uiMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                Text(
+                    if (hideValues) "R$ •••••" else DriverRepository.formatCurrency(stats.totalToday),
+                    color = uiInk(),
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = AppFont,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TextButton(onClick = onToggleValues) {
+                Icon(
+                    if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = null,
+                    tint = uiMuted(),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            MiniStat("Corridas", stats.finishedCount.toString(), Modifier.weight(1f))
+            MiniStat("Finalizadas", stats.finishedCount.toString(), Modifier.weight(1f))
+            MiniStat("Aceitação", "${stats.score}%", Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun CourierCarouselSection(banners: List<CarouselBanner>) {
+    val visibleBanners = banners.ifEmpty { defaultCarouselBanners() }
+    val pagerState = rememberPagerState(pageCount = { visibleBanners.size })
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text("Avisos e novidades", color = uiInk(), fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Informações da operação aparecem aqui.", color = uiMuted(), fontSize = 12.sp, fontFamily = AppFont)
+            }
+        }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(178.dp)
+        ) { page ->
+            CourierBannerCard(visibleBanners[page])
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            visibleBanners.forEachIndexed { index, _ ->
+                Box(
+                    Modifier
+                        .padding(horizontal = 3.dp)
+                        .size(width = if (index == pagerState.currentPage) 22.dp else 7.dp, height = 7.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (index == pagerState.currentPage) Lime else uiBorder())
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CourierBannerCard(banner: CarouselBanner) {
+    val uriHandler = LocalUriHandler.current
+    val canOpenLink = banner.actionType.equals("link", true) && banner.actionValue.startsWith("http", ignoreCase = true)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(178.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF14351F), Color(0xFF0A1C12))))
+            .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(28.dp))
+            .clickable(enabled = canOpenLink) { uriHandler.openUri(banner.actionValue) }
+    ) {
+        if (banner.imageUrl.isNotBlank()) {
+            AsyncImage(
+                model = banner.imageUrl,
+                contentDescription = banner.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().alpha(.86f)
+            )
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .55f), Color.Transparent))))
+        } else {
+            Canvas(Modifier.fillMaxSize()) {
+                drawCircle(Lime.copy(alpha = .14f), radius = size.width * .28f, center = Offset(size.width * .85f, size.height * .20f))
+                drawCircle(Color.White.copy(alpha = .08f), radius = size.width * .18f, center = Offset(size.width * .72f, size.height * .82f))
+            }
+        }
+        Column(Modifier.align(Alignment.CenterStart).padding(18.dp).fillMaxWidth(.72f)) {
+            Text(banner.badge.ifBlank { "UP ENTREGAS" }, color = Lime, fontSize = 11.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Spacer(Modifier.height(6.dp))
+            Text(banner.title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, lineHeight = 26.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(6.dp))
+            Text(banner.description, color = Color.White.copy(alpha = .86f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
+            if (banner.buttonText.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Color.White).padding(horizontal = 13.dp, vertical = 7.dp)) {
+                    Text(banner.buttonText, color = Color(0xFF10200A), fontSize = 11.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                }
+            }
+        }
+        Text("up", color = Color.White.copy(alpha = .22f), fontSize = 50.sp, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp), fontFamily = AppFont)
+    }
+}
+
+@Composable
+private fun QuickActionsGrid(onOpenTab: (AppTab) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            QuickActionCard("Histórico", "Ver corridas", Icons.Filled.History, Modifier.weight(1f)) { onOpenTab(AppTab.Historico) }
+            QuickActionCard("Ganhos", "Resumo financeiro", Icons.Filled.AccountBalanceWallet, Modifier.weight(1f)) { onOpenTab(AppTab.Ganhos) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            QuickActionCard("Mapa", "Ver região", Icons.Filled.Map, Modifier.weight(1f)) { onOpenTab(AppTab.Corridas) }
+            QuickActionCard("Suporte", "Fale conosco", Icons.Filled.HeadsetMic, Modifier.weight(1f)) { onOpenTab(AppTab.Conta) }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(title: String, subtitle: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(uiCard())
+            .border(1.dp, uiBorder(), RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick)
+            .padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFEAF7DF)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = Color(0xFF2E7D00), modifier = Modifier.size(21.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = uiInk(), fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1)
+            Text(subtitle, color = uiMuted2(), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+private fun defaultCarouselBanners(): List<CarouselBanner> = listOf(
+    CarouselBanner(id = "default-1", title = "Novidades da operação", description = "Fique por dentro das atualizações importantes.", badge = "NOVIDADES", buttonText = "Saiba mais", order = 1),
+    CarouselBanner(id = "default-2", title = "Dicas para aumentar seus ganhos", description = "Organize suas rotas e acompanhe seus repasses.", badge = "DICAS", buttonText = "Ver dicas", order = 2),
+    CarouselBanner(id = "default-3", title = "Avisos importantes", description = "A gestão pode publicar comunicados para os entregadores.", badge = "AVISOS", buttonText = "Entendi", order = 3)
+)
+
+@Composable
 private fun OfflineCard(status: OperationalStatus) {
     GlassCard(padding = 18) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Indisponível", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text(status.message.ifBlank { "Toque no botão acima para ficar disponível" }, color = Muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                Text("Indisponível", color = uiInk(), fontSize = 30.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(status.message.ifBlank { "Toque no botão acima para ficar disponível" }, color = uiMuted(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
             }
             Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFF25222B)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Circle, contentDescription = null, tint = Muted2, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Circle, contentDescription = null, tint = uiMuted2(), modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -743,7 +970,7 @@ private fun RestrictionCard(status: OperationalStatus) {
     GlassCard(padding = 18, borderColor = Danger.copy(alpha = .35f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Restrição ativa", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Restrição ativa", color = uiInk(), fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text(status.message, color = Danger, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
             }
             RadarPulse(Danger, slow = true)
@@ -756,7 +983,7 @@ private fun WaitingCard(status: OperationalStatus) {
     GlassCard(padding = 18, borderColor = Lime.copy(alpha = .30f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Aguardando corridas", color = Ink, fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Aguardando corridas", color = uiInk(), fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text("Pronto para receber pedidos", color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
             }
             RadarPulse(Lime, slow = false)
@@ -788,8 +1015,8 @@ private fun IncomingRideCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("NOVA CORRIDA", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                    Text(ride.value, color = Ink, fontSize = 42.sp, fontWeight = FontWeight.Black)
-                    Text("${ride.distance} • ${ride.duration}", color = Muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(ride.value, color = uiInk(), fontSize = 42.sp, fontWeight = FontWeight.Black)
+                    Text("${ride.distance} • ${ride.duration}", color = uiMuted(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
                 CountdownBadge(seconds)
             }
@@ -808,7 +1035,7 @@ private fun IncomingRideCard(
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Detalhes da corrida", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text("Detalhes da corrida", color = uiInk(), fontSize = 24.sp, fontWeight = FontWeight.Black)
                     Text("${ride.value} • ${ride.distance} • ${ride.duration}", color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Black)
                 }
                 CountdownBadge(seconds)
@@ -827,11 +1054,11 @@ private fun IncomingRideCard(
             Spacer(Modifier.height(12.dp))
             StopLine("COLETA", ride.pickup, Lime)
             StopLine("ENTREGA", ride.dropoff.ifBlank { ride.neighborhood }, Purple2)
-            Text("Confira coleta, bairro/entrega, distância, tempo e valor antes de aceitar.", color = Muted2, fontSize = 12.sp)
+            Text("Confira coleta, bairro/entrega, distância, tempo e valor antes de aceitar.", color = uiMuted2(), fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
             RideFinancialPanel(ride, compact = true)
             Spacer(Modifier.height(14.dp))
-            Text("Motivo da recusa (opcional)", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Motivo da recusa (opcional)", color = uiMuted(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             val reasons = listOf("Muito longe", "Valor baixo", "Ocupado", "Veículo", "Outro")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -889,8 +1116,8 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("EM ANDAMENTO", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                Text(title, color = Ink, fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text("Pedido #${ride.orderCode} • ${ride.value}", color = Muted, fontSize = 14.sp)
+                Text(title, color = uiInk(), fontSize = 27.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Pedido #${ride.orderCode} • ${ride.value}", color = uiMuted(), fontSize = 14.sp)
             }
             StatusPill(ride.status.statusLabel(), true)
         }
@@ -939,8 +1166,8 @@ private fun RideFinancialPanel(ride: DriverRide, compact: Boolean) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Financeiro da corrida", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                    Text("Valor do app = repasse frota/piloto", color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                    Text("Financeiro da corrida", color = uiInk(), fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    Text("Valor do app = repasse frota/piloto", color = uiMuted2(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
                 }
                 StatusPill(ride.paymentMethod.ifBlank { "Pagamento" }.take(12), true)
             }
@@ -979,8 +1206,8 @@ private fun RidesContent(
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         GlassCard(padding = 18) {
-            Text("Corridas", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-            Text("Oferta recebida, rota ativa e operação em andamento.", color = Muted, fontSize = 14.sp, fontFamily = AppFont)
+            Text("Corridas", color = uiInk(), fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text("Oferta recebida, rota ativa e operação em andamento.", color = uiMuted(), fontSize = 14.sp, fontFamily = AppFont)
         }
         when {
             activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
@@ -998,14 +1225,14 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
         GlassCard(padding = 18) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Meus ganhos", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                    Text("Resumo financeiro do entregador", color = Muted, fontSize = 14.sp, fontFamily = AppFont)
+                    Text("Meus ganhos", color = uiInk(), fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    Text("Resumo financeiro do entregador", color = uiMuted(), fontSize = 14.sp, fontFamily = AppFont)
                 }
                 TextButton(onClick = { visible = !visible }) {
                     Icon(
                         if (visible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                         contentDescription = if (visible) "Ocultar valores" else "Mostrar valores",
-                        tint = Muted,
+                        tint = uiMuted(),
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -1021,9 +1248,9 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
         GlassCard(padding = 16) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Próximo repasse", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                    Text(if (visible) "Pix: ${profile.pixKey.ifBlank { "não cadastrado" }}" else "Pix: •••••", color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
-                    Text(if (visible) "Banco: ${profile.bankName.ifBlank { "não informado" }}" else "Banco: •••••", color = Muted2, fontSize = 13.sp, fontFamily = AppFont)
+                    Text("Próximo repasse", color = uiInk(), fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    Text(if (visible) "Pix: ${profile.pixKey.ifBlank { "não cadastrado" }}" else "Pix: •••••", color = uiMuted(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
+                    Text(if (visible) "Banco: ${profile.bankName.ifBlank { "não informado" }}" else "Banco: •••••", color = uiMuted2(), fontSize = 13.sp, fontFamily = AppFont)
                 }
             }
         }
@@ -1035,7 +1262,7 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
 private fun MoneyText(value: String, visible: Boolean, fontSize: Int) {
     Text(
         if (visible) value else "R$ •••••",
-        color = Ink,
+        color = uiInk(),
         fontSize = fontSize.sp,
         fontWeight = FontWeight.Black,
         fontFamily = AppFont,
@@ -1051,15 +1278,15 @@ private fun HistoryContent(history: List<DriverHistory>, embedded: Boolean = fal
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         GlassCard(padding = 16) {
-            Text("Histórico de corridas", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
-            Text("Uma linha por corrida, com o status atual.", color = Muted, fontSize = 14.sp)
+            Text("Histórico de corridas", color = uiInk(), fontSize = 24.sp, fontWeight = FontWeight.Black)
+            Text("Uma linha por corrida, com o status atual.", color = uiMuted(), fontSize = 14.sp)
             Spacer(Modifier.height(12.dp))
             if (history.isEmpty()) {
                 EmptyState("Nenhuma corrida ainda", "Aceitas, recusadas, expiradas e finalizadas aparecerão aqui.")
             } else {
                 history.take(30).forEachIndexed { index, item ->
                     HistoryRow(item)
-                    if (index != history.take(30).lastIndex) Divider(color = Color.White.copy(alpha = 0.08f))
+                    if (index != history.take(30).lastIndex) Divider(color = uiBorder())
                 }
             }
         }
@@ -1071,8 +1298,8 @@ private fun HistoryRow(item: DriverHistory) {
     val negative = item.action.contains("REJEIT", true) || item.action.contains("EXPIR", true)
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("Pedido #${item.rideId}", color = Ink, fontWeight = FontWeight.Black, fontSize = 16.sp)
-            Text("${item.action.statusLabel()} • ${item.createdLabel}", color = Muted2, fontSize = 12.sp)
+            Text("Pedido #${item.rideId}", color = uiInk(), fontWeight = FontWeight.Black, fontSize = 16.sp)
+            Text("${item.action.statusLabel()} • ${item.createdLabel}", color = uiMuted2(), fontSize = 12.sp)
         }
         Text(item.value.ifBlank { "—" }, color = if (negative) Muted2 else Lime, fontWeight = FontWeight.Black)
     }
@@ -1110,7 +1337,7 @@ private fun AccountContent(
                 Avatar(profile.name, profile.photoUrl)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(profile.name, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
+                    Text(profile.name, color = uiInk(), fontSize = 22.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
                     Text("Verificado profissional", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
                 }
             }
@@ -1118,7 +1345,7 @@ private fun AccountContent(
             InfoLine("Telefone", profile.phone.ifBlank { "Não informado" })
             InfoLine("Conta", "Verificada")
             Spacer(Modifier.height(12.dp))
-            OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(18.dp)) { Text("Sair da conta", color = Muted) }
+            OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(18.dp)) { Text("Sair da conta", color = uiMuted()) }
         }
 
         GlassCard(padding = 18) {
@@ -1133,9 +1360,9 @@ private fun AccountContent(
                 onClick = onToggleValues,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF232129), contentColor = Ink)
+                colors = ButtonDefaults.buttonColors(containerColor = uiChip(), contentColor = uiInk())
             ) {
-                Icon(if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, contentDescription = null, tint = Muted, modifier = Modifier.size(19.dp))
+                Icon(if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, contentDescription = null, tint = uiMuted(), modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(if (hideValues) "Mostrar valores" else "Ocultar valores", fontWeight = FontWeight.Black)
             }
@@ -1232,7 +1459,7 @@ private fun AccountContent(
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(18.dp)
-            ) { Text("Enviar solicitação", color = Muted) }
+            ) { Text("Enviar solicitação", color = uiMuted()) }
         }
 
         SettingsCenterContent(
@@ -1319,13 +1546,13 @@ private fun SettingButton(title: String, subtitle: String) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = .06f))
+            .background(uiChip())
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-            Text(subtitle, color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Text(title, color = uiInk(), fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(subtitle, color = uiMuted2(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
     }
 }
@@ -1345,8 +1572,8 @@ private fun MoreContent(
         GlassCard(padding = 18) {
             SectionTitle("Mais", "Preferências e suporte operacional.")
             Spacer(Modifier.height(16.dp))
-            Text("Navegação padrão", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black)
-            Text("Escolha o app usado no botão Iniciar navegação.", color = Muted, fontSize = 13.sp)
+            Text("Navegação padrão", color = uiInk(), fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Text("Escolha o app usado no botão Iniciar navegação.", color = uiMuted(), fontSize = 13.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ModeButton("Celular", navPreference == AppSettings.NAV_AUTO, Modifier.weight(1f)) { navPreference = AppSettings.NAV_AUTO; AppSettings.setNavigationApp(context, navPreference) }
@@ -1382,8 +1609,8 @@ private fun MoreContent(
 
 
         GlassCard(padding = 18) {
-            Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 5.4.0 • Torre V9.4", color = Muted2, fontSize = 12.sp)
+            Text("Rodrigues Entregador", color = uiInk(), fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text("Versão 5.4.0 • Torre V9.4", color = uiMuted2(), fontSize = 12.sp)
         }
     }
 }
@@ -1395,25 +1622,26 @@ private fun PermissionRow(label: String, ok: Boolean, onFix: () -> Unit) {
         StatusPill(if (ok) "OK" else "AJUSTAR", ok)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(label, color = uiInk(), fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
             Text(if (ok) "Configurado" else "Toque para liberar", color = if (ok) Lime else Warning, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
         if (!ok) {
             OutlinedButton(onClick = onFix, shape = RoundedCornerShape(16.dp)) {
-                Text("Abrir", color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Abrir", color = uiInk(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-private fun GlassCard(padding: Int = 16, borderColor: Color = Color.White.copy(alpha = 0.10f), content: @Composable ColumnScope.() -> Unit) {
+private fun GlassCard(padding: Int = 16, borderColor: Color = Color.Unspecified, content: @Composable ColumnScope.() -> Unit) {
+    val border = if (borderColor == Color.Unspecified) uiBorder() else borderColor
     Card(
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = PanelSoft),
+        colors = CardDefaults.cardColors(containerColor = uiCard()),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, borderColor, RoundedCornerShape(28.dp))
+            .border(1.dp, border, RoundedCornerShape(28.dp))
     ) {
         Column(Modifier.padding(padding.dp), content = content)
     }
@@ -1421,8 +1649,8 @@ private fun GlassCard(padding: Int = 16, borderColor: Color = Color.White.copy(a
 
 @Composable
 private fun SectionTitle(title: String, subtitle: String) {
-    Text(title, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-    Text(subtitle, color = Muted, fontSize = 13.sp, fontFamily = AppFont)
+    Text(title, color = uiInk(), fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+    Text(subtitle, color = uiMuted(), fontSize = 13.sp, fontFamily = AppFont)
 }
 
 @Composable
@@ -1439,14 +1667,23 @@ private fun AppField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, fontFamily = AppFont, color = Muted) },
+        label = { Text(label, fontFamily = AppFont, color = uiMuted()) },
         singleLine = true,
         modifier = modifier,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = visualTransformation,
         trailingIcon = if (trailing != null && onTrailing != null) {
             { TextButton(onClick = onTrailing) { Text(trailing, color = Lime, fontSize = 11.sp, fontFamily = AppFont) } }
-        } else null
+        } else null,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = uiInk(),
+            unfocusedTextColor = uiInk(),
+            focusedContainerColor = driverPalette().fieldBg,
+            unfocusedContainerColor = driverPalette().fieldBg,
+            focusedBorderColor = Lime,
+            unfocusedBorderColor = uiBorder(),
+            cursorColor = Lime
+        )
     )
 }
 
@@ -1471,8 +1708,8 @@ private fun ModeButton(text: String, selected: Boolean, modifier: Modifier = Mod
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(999.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) Purple else Color.White.copy(alpha = .08f),
-            contentColor = if (selected) Color.White else Muted
+            containerColor = if (selected) Lime else uiChip(),
+            contentColor = if (selected) Color(0xFF10200A) else uiMuted()
         )
     ) { Text(text, fontWeight = FontWeight.Black, fontSize = 13.sp, fontFamily = AppFont) }
 }
@@ -1483,14 +1720,14 @@ private fun TinyChip(text: String, selected: Boolean, modifier: Modifier = Modif
         onClick = onClick,
         modifier = modifier.height(38.dp),
         shape = RoundedCornerShape(999.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Purple else Color.White.copy(alpha = .07f), contentColor = if (selected) Color.White else Muted)
+        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Lime else uiChip(), contentColor = if (selected) Color(0xFF10200A) else uiMuted())
     ) { Text(text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
 @Composable
 private fun StatusMessage(text: String, isError: Boolean) {
-    Card(colors = CardDefaults.cardColors(containerColor = if (isError) Color(0xFF421824) else LimeDark), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(text, color = if (isError) Color(0xFFFFC4D0) else Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
+    Card(colors = CardDefaults.cardColors(containerColor = if (isError) Color(0xFFFFEEF2) else Color(0xFFEAF7DF)), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(text, color = if (isError) Danger else Color(0xFF2E7D00), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
     }
 }
 
@@ -1511,7 +1748,7 @@ private fun Avatar(name: String, photoUrl: String = "") {
                 modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
         } else {
-            Text(name.trim().firstOrNull()?.uppercase() ?: "E", color = Ink, fontWeight = FontWeight.Black, fontSize = 22.sp, fontFamily = AppFont)
+            Text(name.trim().firstOrNull()?.uppercase() ?: "E", color = Color.White, fontWeight = FontWeight.Black, fontSize = 22.sp, fontFamily = AppFont)
         }
     }
 }
@@ -1531,10 +1768,10 @@ private fun StatusPill(text: String, positive: Boolean, modifier: Modifier = Mod
 
 @Composable
 private fun MiniStat(label: String, value: String, modifier: Modifier) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.08f)), shape = RoundedCornerShape(20.dp), modifier = modifier.border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp))) {
+    Card(colors = CardDefaults.cardColors(containerColor = uiCard()), shape = RoundedCornerShape(20.dp), modifier = modifier.border(1.dp, uiBorder(), RoundedCornerShape(20.dp))) {
         Column(Modifier.padding(12.dp)) {
-            Text(label, color = Muted2, fontSize = 12.sp)
-            Text(value, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, color = uiMuted2(), fontSize = 12.sp)
+            Text(value, color = uiInk(), fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -1543,8 +1780,8 @@ private fun MiniStat(label: String, value: String, modifier: Modifier) {
 private fun EmptyState(title: String, subtitle: String) {
     Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Black)
-            Text(subtitle, color = Muted2, fontSize = 12.sp, textAlign = TextAlign.Center)
+            Text(title, color = uiInk(), fontSize = 16.sp, fontWeight = FontWeight.Black)
+            Text(subtitle, color = uiMuted2(), fontSize = 12.sp, textAlign = TextAlign.Center)
         }
     }
 }
@@ -1604,8 +1841,8 @@ private fun NativeRoutePreview(title: String, subtitle: String) {
             Text("CARANDÁ BOSQUE", color = Color.White.copy(alpha = .22f), fontSize = 11.sp, fontWeight = FontWeight.Black)
         }
         Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
-            Text(title, color = Ink, fontWeight = FontWeight.Black, fontSize = 18.sp)
-            Text(subtitle, color = Muted, fontSize = 13.sp)
+            Text(title, color = uiInk(), fontWeight = FontWeight.Black, fontSize = 18.sp)
+            Text(subtitle, color = uiMuted(), fontSize = 13.sp)
         }
     }
 }
@@ -1616,8 +1853,8 @@ private fun StopLine(label: String, value: String, color: Color) {
         Box(Modifier.size(13.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.Black)
-            Text(value, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(label, color = uiMuted2(), fontSize = 11.sp, fontWeight = FontWeight.Black)
+            Text(value, color = uiInk(), fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -1628,13 +1865,13 @@ private fun CountdownBadge(seconds: Int) {
         Modifier
             .size(68.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(uiChip())
             .border(5.dp, if (seconds <= 10) Danger else Lime, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(seconds.toString(), color = Ink, fontWeight = FontWeight.Black, fontSize = 20.sp)
-            Text("seg", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(seconds.toString(), color = uiInk(), fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("seg", color = uiMuted(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1642,8 +1879,8 @@ private fun CountdownBadge(seconds: Int) {
 @Composable
 private fun InfoLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(label, color = Muted2, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Text(value, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = uiMuted2(), fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(value, color = uiInk(), fontSize = 13.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

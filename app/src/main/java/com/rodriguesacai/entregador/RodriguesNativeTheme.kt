@@ -37,21 +37,27 @@ fun RodriguesNativeTheme(
         onPrimary = Color(0xFF10200A),
         secondary = Color(0xFF9B6DFF),
         background = Color(0xFF050507),
+        onBackground = Color.White,
         surface = Color(0xFF15151C),
         onSurface = Color.White,
-        onBackground = Color.White,
-        outline = Color(0xFF3B3644)
+        surfaceVariant = Color(0xFF20202A),
+        onSurfaceVariant = Color(0xFFC9C6D3),
+        outline = Color(0xFF3B3644),
+        error = Color(0xFFFF4D6D)
     )
 
     val light = lightColorScheme(
         primary = Color(0xFF2E7D00),
         onPrimary = Color.White,
-        secondary = Color(0xFF6D36D9),
-        background = Color(0xFFF6F8F3),
+        secondary = Color(0xFF3D7A16),
+        background = Color(0xFFF8FAF6),
+        onBackground = Color(0xFF14171F),
         surface = Color.White,
-        onSurface = Color(0xFF171021),
-        onBackground = Color(0xFF171021),
-        outline = Color(0xFFDDE3D3)
+        onSurface = Color(0xFF14171F),
+        surfaceVariant = Color(0xFFF1F6EA),
+        onSurfaceVariant = Color(0xFF5D6672),
+        outline = Color(0xFFE2EBDD),
+        error = Color(0xFFD92D4A)
     )
 
     MaterialTheme(colorScheme = if (darkTheme) dark else light, typography = typography, content = content)

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Up Entregas • Carrossel do App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">up</div>
+        <div>
+          <strong>entregas</strong>
+          <span>gestão operacional</span>
+        </div>
+      </div>
+
+      <nav class="menu">
+        <a>Visão geral</a>
+        <a>Entregadores</a>
+        <a>Corridas</a>
+        <a>Ganhos</a>
+        <a class="active">Carrossel do App</a>
+        <a>Notificações</a>
+        <a>Configurações</a>
+      </nav>
+
+      <div class="operator">
+        <div class="avatar">U</div>
+        <div>
+          <strong>Up Entregas</strong>
+          <span>Administrador</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Módulo do gestor</p>
+          <h1>Carrossel do App</h1>
+          <p class="lead">Gerencie os banners que aparecem na home do entregador quando não houver corrida em andamento.</p>
+        </div>
+        <button class="help" type="button">Ajuda</button>
+      </header>
+
+      <section class="notice">
+        <strong>Fluxo:</strong> imagem sobe para Cloudinary, os dados são salvos no Firestore em <code>app_carousel_banners</code>, e o app nativo lê somente banners ativos e dentro da vigência.
+      </section>
+
+      <section class="grid">
+        <form id="bannerForm" class="card form-card">
+          <div class="section-head">
+            <div>
+              <h2>Novo banner</h2>
+              <p>Use imagens 16:9, preferencialmente 1280x720px.</p>
+            </div>
+            <span id="formMode" class="pill">Adicionar</span>
+          </div>
+
+          <input type="hidden" id="bannerId" />
+
+          <label class="upload-box" for="imageFile">
+            <input id="imageFile" type="file" accept="image/*" />
+            <span>Adicionar imagem</span>
+            <small>Cloudinary • JPG, PNG ou WEBP</small>
+          </label>
+
+          <img id="imagePreview" class="image-preview hidden" alt="Prévia da imagem" />
+
+          <div class="two-cols">
+            <label>Título
+              <input id="title" required maxlength="70" placeholder="Novidades da operação" />
+            </label>
+            <label>Etiqueta
+              <input id="badge" maxlength="24" placeholder="NOVIDADES" />
+            </label>
+          </div>
+
+          <label>Descrição curta
+            <textarea id="description" required maxlength="160" placeholder="Fique por dentro das atualizações importantes."></textarea>
+          </label>
+
+          <div class="two-cols">
+            <label>Texto do botão
+              <input id="buttonText" maxlength="24" placeholder="Saiba mais" />
+            </label>
+            <label>Ordem
+              <input id="order" type="number" min="1" value="1" />
+            </label>
+          </div>
+
+          <div class="two-cols">
+            <label>Tipo de ação
+              <select id="actionType">
+                <option value="none">Sem ação</option>
+                <option value="link">Abrir link</option>
+                <option value="internal">Abrir página interna</option>
+                <option value="modal">Abrir aviso/modal</option>
+              </select>
+            </label>
+            <label>Destino / ação
+              <input id="actionValue" placeholder="https://... ou /avisos" />
+            </label>
+          </div>
+
+          <div class="two-cols">
+            <label>Início da vigência
+              <input id="startsAt" type="date" />
+            </label>
+            <label>Fim da vigência
+              <input id="endsAt" type="date" />
+            </label>
+          </div>
+
+          <label class="switch-line">
+            <input id="active" type="checkbox" checked />
+            <span>Banner ativo</span>
+          </label>
+
+          <div class="actions">
+            <button class="primary" type="submit">Salvar banner</button>
+            <button class="ghost" id="resetBtn" type="button">Limpar</button>
+          </div>
+
+          <p id="status" class="status"></p>
+        </form>
+
+        <section class="card preview-card">
+          <div class="section-head">
+            <div>
+              <h2>Prévia no app</h2>
+              <p>Visual aproximado da home do entregador.</p>
+            </div>
+          </div>
+
+          <div class="phone-preview">
+            <div class="phone-top">
+              <div class="phone-avatar">D</div>
+              <div>
+                <strong>Olá, Diego</strong>
+                <span>Pronto para receber corridas</span>
+              </div>
+              <em>Disponível</em>
+            </div>
+
+            <div class="phone-earnings">
+              <span>Ganhos de hoje</span>
+              <strong>R$ 128,50</strong>
+            </div>
+
+            <div id="appPreview" class="app-banner-preview">
+              <div>
+                <b>NOVIDADES</b>
+                <strong>Novidades da operação</strong>
+                <span>Fique por dentro das atualizações importantes.</span>
+                <button>Saiba mais</button>
+              </div>
+              <i>up</i>
+            </div>
+            <div class="dots"><span></span><span></span><span></span></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="card list-card">
+        <div class="section-head">
+          <div>
+            <h2>Banners cadastrados</h2>
+            <p>Edite, ative/desative, remova ou altere a ordem de exibição.</p>
+          </div>
+          <button class="secondary" id="reloadBtn" type="button">Atualizar</button>
+        </div>
+
+        <div class="table-head">
+          <span>Ordem</span><span>Prévia</span><span>Título</span><span>Ação</span><span>Status</span><span></span>
+        </div>
+        <div id="bannerList" class="banner-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
