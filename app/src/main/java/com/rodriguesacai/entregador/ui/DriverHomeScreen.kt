@@ -1052,10 +1052,10 @@ private fun HistoryContent(history: List<DriverHistory>, embedded: Boolean = fal
     ) {
         GlassCard(padding = 16) {
             Text("Histórico de corridas", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
-            Text("Aceitas, recusadas, expiradas e finalizadas", color = Muted, fontSize = 14.sp)
+            Text("Uma linha por corrida, com o status atual.", color = Muted, fontSize = 14.sp)
             Spacer(Modifier.height(12.dp))
             if (history.isEmpty()) {
-                EmptyState("Nenhum registro ainda", "As corridas aparecerão aqui automaticamente.")
+                EmptyState("Nenhuma corrida ainda", "Aceitas, recusadas, expiradas e finalizadas aparecerão aqui.")
             } else {
                 history.take(30).forEachIndexed { index, item ->
                     HistoryRow(item)
@@ -1068,12 +1068,13 @@ private fun HistoryContent(history: List<DriverHistory>, embedded: Boolean = fal
 
 @Composable
 private fun HistoryRow(item: DriverHistory) {
+    val negative = item.action.contains("REJEIT", true) || item.action.contains("EXPIR", true)
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(item.action.statusLabel(), color = Ink, fontWeight = FontWeight.Black, fontSize = 15.sp)
-            Text("#${item.rideId.takeLast(6).uppercase()} • ${item.createdLabel}", color = Muted2, fontSize = 12.sp)
+            Text("Pedido #${item.rideId}", color = Ink, fontWeight = FontWeight.Black, fontSize = 16.sp)
+            Text("${item.action.statusLabel()} • ${item.createdLabel}", color = Muted2, fontSize = 12.sp)
         }
-        Text(item.value.ifBlank { "—" }, color = if (item.action.contains("REJEIT", true) || item.action.contains("EXPIR", true)) Muted2 else Lime, fontWeight = FontWeight.Black)
+        Text(item.value.ifBlank { "—" }, color = if (negative) Muted2 else Lime, fontWeight = FontWeight.Black)
     }
 }
 
@@ -1710,14 +1711,14 @@ private fun Context.isLocationEnabled(): Boolean {
 }
 
 private fun String.statusLabel(): String = when {
-    equals("accepted", true) -> "Aceita"
-    equals("pickup", true) -> "Coleta"
-    equals("delivering", true) -> "Entrega"
+    equals("accepted", true) || equals("ACEITA", true) || equals("ACEITO", true) || equals("A_CAMINHO_LOJA", true) -> "Aceita"
+    equals("pickup", true) || equals("COLETANDO", true) || equals("EM_COLETA", true) -> "Na coleta"
+    equals("delivering", true) || equals("EM_ROTA", true) || equals("SAIU_ENTREGA", true) || equals("A_CAMINHO_CLIENTE", true) -> "Em rota"
     equals("finished", true) -> "Finalizada"
-    contains("REJEIT", true) -> "Rejeitada"
+    contains("REJEIT", true) -> "Recusada"
     contains("EXPIR", true) -> "Expirada"
-    contains("CONCL", true) || contains("ENTREG", true) -> "Finalizada"
-    else -> replaceFirstChar { it.uppercase() }
+    contains("CONCL", true) || contains("ENTREG", true) || contains("FINALIZ", true) -> "Finalizada"
+    else -> replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 }
 
 private fun String.shortName(): String {

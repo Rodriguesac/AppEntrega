@@ -12,6 +12,7 @@ import java.security.MessageDigest
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 
 object DriverRepository {
@@ -134,7 +135,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.6.0-ui-fluxo-urgente",
+            "appVersion" to "5.7.0-alpha-rastreio-real",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -177,7 +178,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.6.0-ui-fluxo-urgente"
+                "appVersion" to "5.7.0-alpha-rastreio-real"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -217,7 +218,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.6.0-ui-fluxo-urgente"
+                "appVersion" to "5.7.0-alpha-rastreio-real"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -256,7 +257,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.6.0-ui-fluxo-urgente",
+                "appVersion" to "5.7.0-alpha-rastreio-real",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -358,7 +359,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.6.0-ui-fluxo-urgente"
+                "appVersion" to "5.7.0-alpha-rastreio-real"
             ),
             SetOptions.merge()
         )
@@ -380,7 +381,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.6.0-ui-fluxo-urgente"
+            "appVersion" to "5.7.0-alpha-rastreio-real"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -518,20 +519,29 @@ object DriverRepository {
                     onError(err.message ?: "Erro ao ouvir historico.")
                     return@addSnapshotListener
                 }
-                val list = snap?.documents.orEmpty()
+                val mapped = snap?.documents.orEmpty()
                     .filter { it.matchesDriverId(profile.id) }
                     .map { doc ->
-                        val action = doc.anyString("tipo", "status", "action", "titulo").ifBlank { "registro" }
+                        val action = doc.anyString("statusAtual", "tipo", "status", "action", "titulo").ifBlank { "registro" }
+                        val rawRideId = doc.anyString("rotaId", "rideId", "pedidoId", "missaoId", "corridaId").ifBlank { doc.id }
+                        val displayCode = doc.anyString("codigoPedido", "numeroPedido", "orderCode", "pedidoCodigo")
+                            .ifBlank { rawRideId.takeLast(4).uppercase(Locale.ROOT) }
+                        val date = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()
                         DriverHistory(
                             id = doc.id,
-                            rideId = doc.anyString("rotaId", "rideId", "pedidoId", "missaoId"),
+                            rideId = displayCode,
                             action = action,
                             value = formatCurrency(valueNumberFromDoc(doc)),
-                            createdAtMillis = doc.anyTimestamp("criadoEm", "createdAt", "atualizadoEm")?.toDate()?.time ?: 0L,
-                            createdLabel = doc.anyTimestamp("criadoEm", "createdAt", "atualizadoEm")?.toDate()?.formatHour().orEmpty().ifBlank { "agora" }
+                            createdAtMillis = date?.time ?: 0L,
+                            createdLabel = date?.formatHistoryLabel().orEmpty().ifBlank { "Agora" }
                         )
                     }
+
+                val list = mapped
+                    .groupBy { it.rideId }
+                    .mapNotNull { (_, items) -> items.maxByOrNull { it.createdAtMillis } }
                     .sortedByDescending { it.createdAtMillis }
+
                 onHistory(list)
             }
     }
@@ -581,6 +591,7 @@ object DriverRepository {
                 "valorRepasseMotoboy" to (ride?.valueNumber ?: 0.0),
                 "aceitaEm" to Timestamp.now(),
                 "acceptedAt" to Timestamp.now(),
+                "statusAtualizadoEm" to Timestamp.now(),
                 "atualizadoEm" to Timestamp.now(),
                 "updatedAt" to Timestamp.now()
             )
@@ -590,7 +601,21 @@ object DriverRepository {
                         mapOf("status" to "Em rota", "online" to true, "ultimaAceitacaoEm" to Timestamp.now()),
                         SetOptions.merge()
                     )
-                    addHistory(profile, rideId, "ACEITA", ride?.valueNumber ?: 0.0, collectionName)
+                    db.collection(profile.collectionName).document(profile.id).set(
+                        mapOf(
+                            "statusOperacional" to "A_CAMINHO_LOJA",
+                            "corridaAtualId" to rideId,
+                            "missaoAtualId" to rideId,
+                            "pedidoAtualId" to if (collectionName == "pedidos") rideId else null,
+                            "rotaAtualId" to if (collectionName == "rotas_entrega") rideId else null,
+                            "rastreamentoAtivo" to true,
+                            "codigoPedidoAtual" to (ride?.orderCode?.ifBlank { rideId.takeLast(4).uppercase(Locale.ROOT) } ?: rideId.takeLast(4).uppercase(Locale.ROOT)),
+                            "atualizadoEm" to Timestamp.now(),
+                            "updatedAt" to Timestamp.now()
+                        ),
+                        SetOptions.merge()
+                    )
+                    addHistory(profile, rideId, "ACEITA", ride?.valueNumber ?: 0.0, collectionName, ride)
                     onDone()
                 }
                 .addOnFailureListener { onError(it.message ?: "Falha ao aceitar corrida.") }
@@ -633,7 +658,7 @@ object DriverRepository {
             }
             doc.reference.set(update, SetOptions.merge())
                 .addOnSuccessListener {
-                    addHistory(profile, rideId, if (reason.isBlank()) "REJEITADA" else "REJEITADA: $reason", ride?.valueNumber ?: 0.0, collectionName)
+                    addHistory(profile, rideId, if (reason.isBlank()) "REJEITADA" else "REJEITADA: $reason", ride?.valueNumber ?: 0.0, collectionName, ride)
                     onDone()
                 }
                 .addOnFailureListener { onError(it.message ?: "Falha ao rejeitar corrida.") }
@@ -662,7 +687,7 @@ object DriverRepository {
                 ),
                 SetOptions.merge()
             ).addOnSuccessListener {
-                addHistory(profile, rideId, "EXPIRADA", 0.0, collectionName)
+                addHistory(profile, rideId, "EXPIRADA", 0.0, collectionName, doc.toDriverRide(collectionName))
                 onDone()
             }.addOnFailureListener { onError(it.message ?: "Falha ao expirar oferta.") }
         }, onNotFound = {
@@ -689,6 +714,7 @@ object DriverRepository {
                 "status" to realStatus,
                 "statusEntregador" to realStatus,
                 "statusMotoboy" to realStatus,
+                "statusAtualizadoEm" to Timestamp.now(),
                 "atualizadoEm" to Timestamp.now(),
                 "updatedAt" to Timestamp.now()
             )
@@ -712,7 +738,21 @@ object DriverRepository {
             }
             doc.reference.set(fields, SetOptions.merge())
                 .addOnSuccessListener {
-                    addHistory(profile, rideId, realStatus, ride?.valueNumber ?: 0.0, collectionName)
+                    addHistory(profile, rideId, realStatus, ride?.valueNumber ?: 0.0, collectionName, ride)
+                    db.collection(profile.collectionName).document(profile.id).set(
+                        mapOf(
+                            "statusOperacional" to realStatus.toOperationalFirestoreStatus(),
+                            "corridaAtualId" to rideId,
+                            "missaoAtualId" to rideId,
+                            "pedidoAtualId" to if (collectionName == "pedidos") rideId else null,
+                            "rotaAtualId" to if (collectionName == "rotas_entrega") rideId else null,
+                            "rastreamentoAtivo" to (status != "finished"),
+                            "codigoPedidoAtual" to (ride?.orderCode?.ifBlank { rideId.takeLast(4).uppercase(Locale.ROOT) } ?: rideId.takeLast(4).uppercase(Locale.ROOT)),
+                            "atualizadoEm" to Timestamp.now(),
+                            "updatedAt" to Timestamp.now()
+                        ),
+                        SetOptions.merge()
+                    )
                     if (status == "finished") {
                         db.collection(profile.collectionName).document(profile.id).set(
                             mapOf(
@@ -720,7 +760,13 @@ object DriverRepository {
                                 "online" to true,
                                 "ultimaConclusaoEm" to Timestamp.now(),
                                 "totalEntregas" to FieldValue.increment(1),
-                                "saldoLiquido" to FieldValue.increment(ride?.valueNumber ?: 0.0)
+                                "saldoLiquido" to FieldValue.increment(ride?.valueNumber ?: 0.0),
+                                "rastreamentoAtivo" to false,
+                                "statusOperacional" to "LIVRE",
+                                "corridaAtualId" to null,
+                                "missaoAtualId" to null,
+                                "pedidoAtualId" to null,
+                                "rotaAtualId" to null
                             ),
                             SetOptions.merge()
                         )
@@ -731,6 +777,87 @@ object DriverRepository {
         }, onNotFound = {
             onError("Corrida nao encontrada.")
         })
+    }
+
+    fun updateDriverLocationForTracking(
+        context: Context,
+        ride: DriverRide,
+        lat: Double,
+        lng: Double,
+        accuracy: Float,
+        speed: Float,
+        bearing: Float,
+        distanciaPercorridaKm: Double,
+        tempoMovimentoMin: Long,
+        intervaloSeg: Long,
+        onError: (String) -> Unit = {}
+    ) {
+        val profile = currentSession(context) ?: return
+        val now = Timestamp.now()
+        val statusOperacional = ride.status.toOperationalFirestoreStatus()
+
+        val payload = linkedMapOf<String, Any?>(
+            "online" to true,
+            "status" to "Em rota",
+            "statusOnline" to "Online",
+            "statusOperacional" to statusOperacional,
+            "corridaAtualId" to ride.id,
+            "missaoAtualId" to ride.id,
+            "missaoAtualTipo" to ride.collectionName,
+            "pedidoAtualId" to if (ride.collectionName == "pedidos") ride.id else null,
+            "rotaAtualId" to if (ride.collectionName == "rotas_entrega") ride.id else null,
+            "codigoPedidoAtual" to ride.orderCode.ifBlank { ride.id.takeLast(4).uppercase(Locale.ROOT) },
+            "rastreamentoAtivo" to true,
+            "localizacaoAtualizadaEm" to now,
+            "atualizadoEm" to now,
+            "updatedAt" to now,
+            "coords" to mapOf(
+                "lat" to lat,
+                "lng" to lng,
+                "accuracy" to accuracy.toDouble(),
+                "speed" to speed.toDouble(),
+                "bearing" to bearing.toDouble(),
+                "updatedAt" to now
+            ),
+            "rastreamento" to mapOf(
+                "ativo" to true,
+                "pedidoAtualId" to if (ride.collectionName == "pedidos") ride.id else null,
+                "rotaAtualId" to if (ride.collectionName == "rotas_entrega") ride.id else null,
+                "corridaAtualId" to ride.id,
+                "statusOperacional" to statusOperacional,
+                "distanciaPercorridaKm" to distanciaPercorridaKm,
+                "tempoMovimentoMin" to tempoMovimentoMin,
+                "intervaloSeg" to intervaloSeg,
+                "atualizadoEm" to now
+            ),
+            "localizacaoOrigem" to "android_native_v5_7"
+        )
+
+        db.collection(profile.collectionName).document(profile.id)
+            .set(payload, SetOptions.merge())
+            .addOnFailureListener { onError(it.message ?: "Falha ao atualizar localização.") }
+    }
+
+    fun clearDriverTracking(context: Context) {
+        val profile = currentSession(context) ?: return
+        val now = Timestamp.now()
+        db.collection(profile.collectionName).document(profile.id).set(
+            mapOf(
+                "rastreamentoAtivo" to false,
+                "statusOperacional" to "LIVRE",
+                "corridaAtualId" to null,
+                "missaoAtualId" to null,
+                "pedidoAtualId" to null,
+                "rotaAtualId" to null,
+                "rastreamento" to mapOf(
+                    "ativo" to false,
+                    "finalizadoEm" to now
+                ),
+                "atualizadoEm" to now,
+                "updatedAt" to now
+            ),
+            SetOptions.merge()
+        )
     }
 
     private fun findMissionDocument(rideId: String, onFound: (DocumentSnapshot) -> Unit, onNotFound: () -> Unit) {
@@ -749,8 +876,22 @@ object DriverRepository {
         tryCollection(0)
     }
 
-    private fun addHistory(profile: DriverProfile, rideId: String, action: String, valueNumber: Double, collectionName: String) {
-        db.collection("historicoEntregador").add(
+    private fun addHistory(
+        profile: DriverProfile,
+        rideId: String,
+        action: String,
+        valueNumber: Double,
+        collectionName: String,
+        ride: DriverRide? = null
+    ) {
+        val now = Timestamp.now()
+        val displayCode = ride?.orderCode?.takeIf { it.isNotBlank() } ?: rideId.takeLast(4).uppercase(Locale.ROOT)
+        val historyId = "${profile.id}_${collectionName}_${rideId}"
+            .replace(Regex("[^A-Za-z0-9_\-]"), "_")
+            .take(180)
+        val humanTitle = action.historyHumanLabel()
+
+        db.collection("historicoEntregador").document(historyId).set(
             mapOf(
                 "entregadorId" to profile.id,
                 "entregadorUid" to profile.id,
@@ -758,18 +899,35 @@ object DriverRepository {
                 "entregadorNome" to profile.name,
                 "rotaId" to rideId,
                 "rideId" to rideId,
+                "pedidoId" to if (collectionName == "pedidos") rideId else null,
+                "corridaId" to rideId,
                 "missaoTipo" to collectionName,
+                "codigoPedido" to displayCode,
+                "numeroPedido" to displayCode,
                 "tipo" to action,
                 "status" to action,
-                "titulo" to action,
+                "statusAtual" to action,
+                "titulo" to humanTitle,
                 "valorRota" to valueNumber,
                 "valueNumber" to valueNumber,
                 "repasseEntregador" to valueNumber,
                 "valorRepasseMotoboy" to valueNumber,
-                "criadoEm" to Timestamp.now(),
-                "createdAt" to Timestamp.now(),
-                "origem" to "android_native"
-            )
+                "statusAtualizadoEm" to now,
+                "atualizadoEm" to now,
+                "updatedAt" to now,
+                "criadoEm" to now,
+                "createdAt" to now,
+                "origem" to "android_native_v5_7_alpha",
+                "eventosStatus" to FieldValue.arrayUnion(
+                    mapOf(
+                        "status" to action,
+                        "titulo" to humanTitle,
+                        "data" to Date().time,
+                        "origem" to "android_native"
+                    )
+                )
+            ),
+            SetOptions.merge()
         )
     }
 
@@ -855,6 +1013,47 @@ object DriverRepository {
     }
 
     private fun Date.formatHour(): String = SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(this)
+
+    private fun Date.formatHistoryLabel(): String {
+        val now = Calendar.getInstance()
+        val dateCal = Calendar.getInstance().apply { time = this@formatHistoryLabel }
+        val hour = SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(this)
+        val sameYear = now.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR)
+        val sameDay = sameYear && now.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
+        val yesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        val isYesterday = yesterday.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
+            yesterday.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
+
+        return when {
+            sameDay -> "Hoje • $hour"
+            isYesterday -> "Ontem • $hour"
+            else -> "${SimpleDateFormat("dd/MM", Locale("pt", "BR")).format(this)} • $hour"
+        }
+    }
+
+    private fun String.historyHumanLabel(): String {
+        val s = upperOrTrim()
+        return when {
+            s.contains("REJEIT") -> "Recusada"
+            s.contains("EXPIR") -> "Expirada"
+            s in setOf("ACEITA", "ACEITO", "ACCEPTED", "A_CAMINHO_LOJA") -> "Aceita"
+            s in setOf("COLETANDO", "EM_COLETA", "PICKUP") -> "Na coleta"
+            s in setOf("EM_ROTA", "SAIU_ENTREGA", "A_CAMINHO_CLIENTE", "DELIVERING") -> "Em rota"
+            s.contains("CONCL") || s.contains("ENTREG") || s.contains("FINALIZ") || s == "FINISHED" -> "Finalizada"
+            else -> replace('_', ' ').lowercase(Locale.ROOT).replaceFirstChar { it.uppercase() }
+        }
+    }
+
+    private fun String.toOperationalFirestoreStatus(): String {
+        val s = upperOrTrim()
+        return when {
+            s == "accepted" || s == "ACEITA" || s == "ACEITO" || s == "A_CAMINHO_LOJA" -> "A_CAMINHO_LOJA"
+            s == "pickup" || s == "COLETANDO" || s == "EM_COLETA" -> "COLETANDO"
+            s == "delivering" || s == "EM_ROTA" || s == "SAIU_ENTREGA" || s == "A_CAMINHO_CLIENTE" -> "A_CAMINHO_CLIENTE"
+            s == "finished" || s.contains("CONCL") || s.contains("ENTREG") || s.contains("FINALIZ") -> "ENTREGUE"
+            else -> s
+        }
+    }
 
     private fun String.onlyDigits(): String = filter { it.isDigit() }
 
