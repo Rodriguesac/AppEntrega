@@ -4,11 +4,11 @@ setlocal enabledelayedexpansion
 
 echo.
 echo ==========================================================
-echo  UP ENTREGAS - CORRIGIR E APLICAR APP NATIVO TEMA CLARO
+echo  UP ENTREGAS - APLICAR APP NATIVO TEMA CLARO V3
 echo ==========================================================
 echo.
 echo Este aplicador remove conflitos antigos de Gradle Groovy/KTS
-echo e força o modulo app a virar Android Application.
+echo corrige o padding do Scaffold e força o modulo app a virar Android Application.
 echo.
 
 set "ORIGEM=%~dp0"
@@ -58,7 +58,7 @@ echo.
 echo Agora rode na pasta do repositorio:
 echo   git status
 echo   git add .
-echo   git commit -m "Corrigir build Android app Up Entregas"
+echo   git commit -m "Corrigir build Kotlin app Up Entregas"
 echo   git push
 
 echo.
