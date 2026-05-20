@@ -1,11 +1,14 @@
 package com.rodriguesacai.entregador.ui.components
 
 import android.os.Bundle
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -19,14 +22,18 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.rodriguesacai.entregador.data.Ride
 import com.rodriguesacai.entregador.ui.deliveryAddressVisible
+import com.rodriguesacai.entregador.ui.hasDeliveryLocation
+import com.rodriguesacai.entregador.ui.hasPickupLocation
 import com.rodriguesacai.entregador.ui.theme.AppColors
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun NativeMapPreview(ride: Ride?, modifier: Modifier = Modifier.fillMaxWidth().height(230.dp)) {
-    if (ride == null) {
-        MiniMapDrawing(modifier)
+    if (ride == null || !ride.hasPickupLocation()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("Mapa disponível quando houver corrida com coordenadas reais.", color = AppColors.Muted)
+        }
         return
     }
     val mapView = rememberMapViewWithLifecycle()
@@ -35,23 +42,20 @@ fun NativeMapPreview(ride: Ride?, modifier: Modifier = Modifier.fillMaxWidth().h
         modifier = modifier,
         update = { map ->
             map.getMapAsync { googleMap ->
-                val loja = LatLng(ride.lojaLat, ride.lojaLng)
-                val cliente = LatLng(ride.clienteLat, ride.clienteLng)
-                val showDelivery = ride.deliveryAddressVisible()
+                val loja = LatLng(ride.lojaLat!!, ride.lojaLng!!)
+                val showDelivery = ride.deliveryAddressVisible() && ride.hasDeliveryLocation()
                 googleMap.clear()
                 googleMap.uiSettings.isZoomControlsEnabled = false
                 googleMap.uiSettings.isMapToolbarEnabled = false
                 googleMap.addMarker(MarkerOptions().position(loja).title("Coleta"))
                 if (showDelivery) {
+                    val cliente = LatLng(ride.clienteLat!!, ride.clienteLng!!)
                     googleMap.addMarker(MarkerOptions().position(cliente).title("Entrega"))
-                    googleMap.addPolyline(
-                        PolylineOptions()
-                            .add(loja, cliente)
-                            .width(7f)
-                            .color(AppColors.Green.toArgb())
-                    )
+                    googleMap.addPolyline(PolylineOptions().add(loja, cliente).width(7f).color(AppColors.Green.toArgb()))
+                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(cliente, 14f))
+                } else {
+                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(loja, 14f))
                 }
-                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(if (showDelivery) cliente else loja, 14f))
             }
         }
     )

@@ -59,7 +59,6 @@ fun RodriguesEntregadorApp(vm: DriverViewModel = viewModel()) {
                     loading = state.loading,
                     error = state.error,
                     onLogin = vm::login,
-                    onDemo = vm::enterDemo,
                     onCadastro = { route = AppRoute.Cadastro },
                     onCriarSenha = { route = AppRoute.CriarSenha }
                 )

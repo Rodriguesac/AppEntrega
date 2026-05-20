@@ -59,8 +59,8 @@ fun UrgentRideScreen(
                 Metric("Distância", safeDistance(ride.distanciaKm), AppColors.Ink, Modifier.weight(1f))
                 Metric("Tempo", safeEta(ride.tempoEstimadoMin), AppColors.Ink, Modifier.weight(1f))
             }
-            AddressBlock("Coleta", ride.lojaNome, ride.lojaEndereco)
-            AddressBlock("Entrega", ride.clienteBairro, "Endereço completo será liberado na etapa correta")
+            AddressBlock("Coleta", ride.lojaNome.ifBlank { "Coleta" }, ride.lojaEndereco.ifBlank { "Endereço da coleta pendente" })
+            AddressBlock("Entrega", ride.clienteBairro.ifBlank { "Bairro pendente" }, "Endereço completo será liberado na etapa correta")
             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Field(reason, { reason = it }, "Motivo se recusar")

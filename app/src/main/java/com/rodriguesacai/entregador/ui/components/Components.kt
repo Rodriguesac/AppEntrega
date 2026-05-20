@@ -65,7 +65,7 @@ import com.rodriguesacai.entregador.ui.deliveryAddressVisible
 import com.rodriguesacai.entregador.ui.format1
 import com.rodriguesacai.entregador.ui.humanStatus
 import com.rodriguesacai.entregador.ui.pickupVisibleAddress
-import com.rodriguesacai.entregador.ui.money
+import com.rodriguesacai.entregador.ui.moneyOrEmpty
 import com.rodriguesacai.entregador.ui.safeDeliveryAddress
 import com.rodriguesacai.entregador.ui.safeDistance
 import com.rodriguesacai.entregador.ui.safeEta
@@ -73,6 +73,15 @@ import com.rodriguesacai.entregador.ui.safeMoney
 import com.rodriguesacai.entregador.ui.navigation.AppRoute
 import com.rodriguesacai.entregador.ui.statusColor
 import com.rodriguesacai.entregador.ui.theme.AppColors
+
+@Composable
+fun BrandLogo(modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Text("Up", color = AppColors.Green, fontSize = 38.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.width(8.dp))
+        Text("entregas", color = AppColors.Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
+    }
+}
 
 @Composable
 fun BasePage(
@@ -142,9 +151,11 @@ fun AppBottomBar(current: AppRoute, onNav: (AppRoute) -> Unit) {
 @Composable
 fun Header(driver: Driver?, onLogout: () -> Unit) {
     val restricted = driver?.statusOperacional == "RESTRICAO"
+    val greetingName = driver?.nome?.takeIf { it.isNotBlank() } ?: "entregador"
     val subtitle = when {
-        restricted -> "Resolva a restrição para receber corridas"
-        driver?.online == true -> "Disponível para novas corridas"
+        driver == null -> "Sincronizando perfil"
+        restricted -> driver.restricaoMotivo.ifBlank { "Resolva a restrição para receber corridas" }
+        driver.online -> "Disponível para novas corridas"
         else -> "Ative disponibilidade para iniciar"
     }
     Row(
@@ -154,10 +165,10 @@ fun Header(driver: Driver?, onLogout: () -> Unit) {
         DriverAvatar(driver)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("Olá, ${driver?.nome ?: "entregador"}", color = AppColors.Ink, fontWeight = FontWeight.Black, fontSize = 23.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Olá, $greetingName", color = AppColors.Ink, fontWeight = FontWeight.Black, fontSize = 23.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, color = if (restricted) AppColors.Red else AppColors.Muted, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        SmallIconButton(AppColors.Green.copy(alpha = .10f), AppColors.Green, { Icon(Icons.Rounded.ReportProblem, contentDescription = "Alertas", tint = AppColors.Green, modifier = Modifier.size(22.dp)) }) { }
+        SmallIconButton(AppColors.Green.copy(alpha = .10f), AppColors.Green, { Icon(Icons.Rounded.Notifications, contentDescription = "Alertas", tint = AppColors.Green, modifier = Modifier.size(22.dp)) }) { }
         Spacer(Modifier.width(8.dp))
         SmallIconButton(AppColors.Green.copy(alpha = .10f), AppColors.Green, { Icon(Icons.Rounded.MoreVert, contentDescription = "Mais", tint = AppColors.Green, modifier = Modifier.size(23.dp)) }, onLogout)
     }
@@ -180,7 +191,7 @@ private fun DriverAvatar(driver: Driver?) {
                 modifier = Modifier.size(58.dp).clip(CircleShape)
             )
         } else {
-            Text((driver?.nome ?: "E").take(1).uppercase(), color = AppColors.Green, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text((driver?.nome?.takeIf { it.isNotBlank() } ?: "E").take(1).uppercase(), color = AppColors.Green, fontWeight = FontWeight.Black, fontSize = 20.sp)
         }
     }
 }
@@ -199,10 +210,11 @@ private fun SmallIconButton(bg: Color, fg: Color, icon: @Composable () -> Unit, 
 fun StatusSwitch(driver: Driver?, onOnline: (Boolean) -> Unit) {
     val online = driver?.online == true
     val restricted = driver?.statusOperacional == "RESTRICAO"
+    val hasDriver = driver != null
     val text = if (restricted) "Restrição" else if (online) "Disponível" else "Indisponível"
     val color = if (restricted) AppColors.Red else if (online) AppColors.Green else AppColors.Ink
     Button(
-        onClick = { if (!restricted) onOnline(!online) },
+        onClick = { if (hasDriver && !restricted) onOnline(!online) },
         colors = ButtonDefaults.buttonColors(containerColor = color),
         shape = RoundedCornerShape(999.dp),
         modifier = Modifier.fillMaxWidth().height(46.dp)
@@ -349,7 +361,7 @@ fun ActiveRideCard(ride: Ride, onOpen: () -> Unit, onMap: () -> Unit) {
             Divider(color = AppColors.Line)
             Text("Coleta: ${ride.pickupVisibleAddress()}", color = AppColors.Ink, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("Entrega: $address", color = AppColors.Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("${safeDistance(ride.distanciaKm)} • ${safeEta(ride.tempoEstimadoMin)} • ${ride.clienteBairro}", color = AppColors.Muted, fontSize = 12.sp)
+            Text("${safeDistance(ride.distanciaKm)} • ${safeEta(ride.tempoEstimadoMin)} • ${ride.clienteBairro.ifBlank { "bairro pendente" }}", color = AppColors.Muted, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpen, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) { Text("Abrir") }
                 OutlinedButton(onClick = onMap, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp)) { Text("Mapa") }
@@ -361,7 +373,7 @@ fun ActiveRideCard(ride: Ride, onOpen: () -> Unit, onMap: () -> Unit) {
 @Composable
 fun EarningsCompact(driver: Driver?, onToggleValues: (Boolean) -> Unit) {
     val hidden = driver?.ocultarValores == true
-    val hoje = if (hidden) "••••" else money(driver?.saldoHoje ?: 0.0)
+    val hoje = moneyOrEmpty(driver?.saldoHoje, hidden)
     Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(26.dp), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -369,7 +381,7 @@ fun EarningsCompact(driver: Driver?, onToggleValues: (Boolean) -> Unit) {
                 Text(hoje, color = AppColors.Ink, fontWeight = FontWeight.Black, fontSize = 28.sp, maxLines = 1)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("${driver?.corridasHoje ?: 0}", color = AppColors.Ink, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                Text(driver?.corridasHoje?.toString() ?: "—", color = AppColors.Ink, fontWeight = FontWeight.Black, fontSize = 22.sp)
                 Text("corridas hoje", color = AppColors.Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.width(8.dp))

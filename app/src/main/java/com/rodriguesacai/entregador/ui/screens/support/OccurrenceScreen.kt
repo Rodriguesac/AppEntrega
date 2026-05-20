@@ -17,7 +17,7 @@ import com.rodriguesacai.entregador.ui.theme.AppColors
 
 @Composable
 fun OccurrenceScreen(ride: Ride?, onBack: () -> Unit, onSend: (String, String, String) -> Unit) {
-    var motivo by remember { mutableStateOf("Cliente não atende") }
+    var motivo by remember { mutableStateOf("") }
     var detalhe by remember { mutableStateOf("") }
     BasePage("Ocorrência", "Mantém a corrida aberta para solução", onBack) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

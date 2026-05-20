@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0-nativo-auditado"
+        versionCode = 6
+        versionName = "0.6.0-nativo-real-sem-mock"
         manifestPlaceholders["MAPS_API_KEY"] = "AIzaSyBkCcdbR8Z9V9DB0wAJfC_YiRaNe8nnaA4"
     }
 

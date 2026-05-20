@@ -20,13 +20,13 @@ fun PixBankScreen(driver: Driver?, onBack: () -> Unit, onSave: (String, String, 
     var chave by remember(driver?.pixChave) { mutableStateOf(driver?.pixChave.orEmpty()) }
     var tipo by remember(driver?.pixTipo) { mutableStateOf(driver?.pixTipo.orEmpty()) }
     var banco by remember(driver?.banco) { mutableStateOf(driver?.banco.orEmpty()) }
-    BasePage("Pix/banco", "Dados para repasse", onBack) {
+    BasePage("Recebimento", "Salva Pix e banco no Firebase", onBack) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            AlertBox("A conta precisa estar no nome do titular cadastrado.", AppColors.Muted)
+            AlertBox("A conta precisa estar no nome do titular cadastrado. Não aceitamos conta de terceiros.", AppColors.Muted)
             Field(tipo, { tipo = it }, "Tipo da chave Pix")
             Field(chave, { chave = it }, "Chave Pix")
             Field(banco, { banco = it }, "Banco")
-            PrimaryButton("Salvar recebimento") { onSave(chave, tipo, banco) }
+            PrimaryButton("Salvar dados") { onSave(chave, tipo, banco) }
         }
     }
 }

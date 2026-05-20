@@ -52,20 +52,9 @@ class DriverViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun enterDemo() = viewModelScope.launch {
+    fun submitRegistration(nome: String, cpf: String, telefone: String, placa: String, documentoUri: String?, selfieUri: String?) = viewModelScope.launch {
         _state.value = _state.value.copy(loading = true, error = null, message = null)
-        runCatching { repo.enterDemo() }
-            .onSuccess {
-                _state.value = _state.value.copy(loading = false, logged = true)
-                startListeners()
-                syncFcmToken()
-            }
-            .onFailure { setError(it) }
-    }
-
-    fun submitRegistration(nome: String, cpf: String, telefone: String, placa: String) = viewModelScope.launch {
-        _state.value = _state.value.copy(loading = true, error = null, message = null)
-        runCatching { repo.submitRegistration(nome, cpf, telefone, placa) }
+        runCatching { repo.submitRegistration(nome, cpf, telefone, placa, documentoUri, selfieUri) }
             .onSuccess { _state.value = _state.value.copy(loading = false, message = "Cadastro enviado para análise.") }
             .onFailure { setError(it) }
     }

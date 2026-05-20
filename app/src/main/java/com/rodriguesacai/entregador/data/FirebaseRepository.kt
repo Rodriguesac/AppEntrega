@@ -2,6 +2,7 @@ package com.rodriguesacai.entregador.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FieldValue
@@ -10,11 +11,14 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 
-class FirebaseRepository(context: Context) {
+class FirebaseRepository(private val context: Context) {
     private val db = Firebase.firestore
     private val auth = Firebase.auth
+    private val storage = Firebase.storage
     private val prefs: SharedPreferences = context.getSharedPreferences("rod_entregador", Context.MODE_PRIVATE)
 
     var driverId: String
@@ -26,13 +30,14 @@ class FirebaseRepository(context: Context) {
     suspend fun login(identifier: String, password: String): Result<String> = runCatching {
         ensureFirebaseSession()
         val clean = identifier.filter { it.isDigit() }
-        val candidates = mutableListOf<com.google.firebase.firestore.DocumentSnapshot>()
+        if (clean.isBlank()) throw IllegalStateException("Informe CPF ou telefone.")
+        if (password.isBlank()) throw IllegalStateException("Informe sua senha.")
 
+        val candidates = mutableListOf<com.google.firebase.firestore.DocumentSnapshot>()
         suspend fun queryBy(field: String) {
-            val snap = db.collection("entregadores").whereEqualTo(field, clean).limit(3).get().await()
+            val snap = db.collection("entregadores").whereEqualTo(field, clean).limit(5).get().await()
             candidates.addAll(snap.documents)
         }
-
         queryBy("cpf")
         queryBy("cpfNormalizado")
         queryBy("telefone")
@@ -40,8 +45,13 @@ class FirebaseRepository(context: Context) {
 
         val doc = candidates.distinctBy { it.id }.firstOrNull { candidate ->
             val senha = candidate.getString("senhaApp") ?: candidate.getString("senha") ?: candidate.getString("senhaTemporaria")
-            senha.isNullOrBlank() || senha == password
+            senha == password
         } ?: throw IllegalStateException("Entregador não encontrado ou senha incorreta.")
+
+        val statusCadastro = doc.getString("statusCadastro") ?: doc.getString("status") ?: ""
+        if (statusCadastro.equals("PENDENTE", true) || statusCadastro.equals("EM_ANALISE", true)) {
+            throw IllegalStateException("Cadastro ainda está em análise.")
+        }
 
         driverId = doc.id
         db.collection("entregadores").document(doc.id).set(
@@ -55,39 +65,26 @@ class FirebaseRepository(context: Context) {
         doc.id
     }
 
-    suspend fun enterDemo(): String {
-        ensureFirebaseSession()
-        driverId = "entregador_demo"
-        db.collection("entregadores").document(driverId).set(
-            mapOf(
-                "nome" to "Diego",
-                "cpfNormalizado" to "00000000000",
-                "telefoneNormalizado" to "67999999999",
-                "statusOperacional" to "INDISPONIVEL",
-                "online" to false,
-                "verificado" to true,
-                "appNativo" to true,
-                "saldoHoje" to 0.0,
-                "saldoSemana" to 0.0,
-                "saldoMes" to 0.0,
-                "corridasHoje" to 0,
-                "atualizadoEm" to FieldValue.serverTimestamp()
-            ),
-            SetOptions.merge()
-        ).await()
-        return driverId
-    }
-
-    suspend fun submitRegistration(nome: String, cpf: String, telefone: String, placa: String) {
+    suspend fun submitRegistration(nome: String, cpf: String, telefone: String, placa: String, documentoUri: String?, selfieUri: String?) {
         ensureFirebaseSession()
         val cleanCpf = cpf.filter { it.isDigit() }
         val cleanPhone = telefone.filter { it.isDigit() }
-        db.collection("cadastrosEntregador").add(
+        if (nome.isBlank()) throw IllegalStateException("Informe o nome completo.")
+        if (cleanCpf.length != 11) throw IllegalStateException("Informe um CPF válido.")
+        if (cleanPhone.length < 10) throw IllegalStateException("Informe um telefone válido.")
+
+        val cadastroId = UUID.randomUUID().toString()
+        val documentoUrl = uploadIfPresent("cadastrosEntregador/$cadastroId/documento", documentoUri)
+        val selfieUrl = uploadIfPresent("cadastrosEntregador/$cadastroId/selfie", selfieUri)
+
+        db.collection("cadastrosEntregador").document(cadastroId).set(
             mapOf(
-                "nome" to nome,
+                "nome" to nome.trim(),
                 "cpfNormalizado" to cleanCpf,
                 "telefoneNormalizado" to cleanPhone,
-                "placa" to placa.uppercase(),
+                "placa" to placa.uppercase().trim(),
+                "documentoUrl" to documentoUrl,
+                "selfieUrl" to selfieUrl,
                 "status" to "PENDENTE",
                 "origem" to "APP_NATIVO",
                 "criadaEm" to FieldValue.serverTimestamp()
@@ -95,15 +92,25 @@ class FirebaseRepository(context: Context) {
         ).await()
     }
 
+    private suspend fun uploadIfPresent(path: String, uriString: String?): String {
+        if (uriString.isNullOrBlank()) return ""
+        val uri = Uri.parse(uriString)
+        val ref = storage.reference.child("$path-${System.currentTimeMillis()}")
+        ref.putFile(uri).await()
+        return ref.downloadUrl.await().toString()
+    }
+
     suspend fun createPassword(identifier: String, password: String) {
         ensureFirebaseSession()
         val clean = identifier.filter { it.isDigit() }
+        if (clean.length != 11) throw IllegalStateException("Informe o CPF cadastrado.")
+        if (password.length < 6) throw IllegalStateException("A senha precisa ter pelo menos 6 caracteres.")
         val snap = db.collection("entregadores")
             .whereEqualTo("cpfNormalizado", clean)
             .limit(1)
             .get()
             .await()
-        val doc = snap.documents.firstOrNull() ?: throw IllegalStateException("Cadastro não encontrado para criar senha.")
+        val doc = snap.documents.firstOrNull() ?: throw IllegalStateException("Cadastro aprovado não encontrado para criar senha.")
         db.collection("entregadores").document(doc.id).set(
             mapOf(
                 "senhaApp" to password,
@@ -114,9 +121,7 @@ class FirebaseRepository(context: Context) {
         ).await()
     }
 
-    fun logout() {
-        prefs.edit().clear().apply()
-    }
+    fun logout() { prefs.edit().clear().apply() }
 
     suspend fun ensureFirebaseSession() {
         if (auth.currentUser == null) auth.signInAnonymously().await()
@@ -138,7 +143,7 @@ class FirebaseRepository(context: Context) {
             .whereIn("status", listOf("OFERTA_RECEBIDA", "ACEITA", "INDO_COLETA", "CHEGUEI_COLETA", "PEDIDO_RETIRADO", "INDO_ENTREGA", "ENTREGADOR_NO_LOCAL", "OCORRENCIA"))
             .addSnapshotListener { snap, error ->
                 if (error != null) onError(error)
-                else onData(snap?.documents?.map { it.toRide() }?.sortedBy { it.status } ?: emptyList())
+                else onData(snap?.documents?.map { it.toRide() } ?: emptyList())
             }
     }
 
@@ -147,7 +152,7 @@ class FirebaseRepository(context: Context) {
         return db.collection("corridas")
             .whereEqualTo("entregadorUid", id)
             .orderBy("atualizadaEm", Query.Direction.DESCENDING)
-            .limit(40)
+            .limit(50)
             .addSnapshotListener { snap, error ->
                 if (error != null) onError(error)
                 else onData(snap?.documents?.map { it.toRide() } ?: emptyList())
@@ -186,13 +191,13 @@ class FirebaseRepository(context: Context) {
         db.collection("corridas").document(rideId).set(
             mapOf(
                 "status" to "RECUSADA",
-                "motivoRecusa" to motivo,
+                "motivoRecusa" to motivo.ifBlank { "Sem motivo informado" },
                 "recusadaEm" to FieldValue.serverTimestamp(),
                 "atualizadaEm" to FieldValue.serverTimestamp()
             ),
             SetOptions.merge()
         ).await()
-        db.collection("entregadores").document(id).set(mapOf("corridaAtualId" to null), SetOptions.merge()).await()
+        db.collection("entregadores").document(id).set(mapOf("corridaAtualId" to null, "pedidoAtualId" to null), SetOptions.merge()).await()
     }
 
     suspend fun advanceRide(ride: Ride) {
@@ -216,7 +221,7 @@ class FirebaseRepository(context: Context) {
         }
         updateRide(ride.id, next, field)
         if (next == "FINALIZADA") {
-            db.collection("entregadores").document(driverId).set(mapOf("corridaAtualId" to null), SetOptions.merge()).await()
+            db.collection("entregadores").document(driverId).set(mapOf("corridaAtualId" to null, "pedidoAtualId" to null), SetOptions.merge()).await()
         }
     }
 
@@ -242,9 +247,9 @@ class FirebaseRepository(context: Context) {
         val id = driverId.ifBlank { return }
         db.collection("entregadores").document(id).set(
             mapOf(
-                "pixChave" to chave,
-                "pixTipo" to tipo,
-                "banco" to banco,
+                "pixChave" to chave.trim(),
+                "pixTipo" to tipo.trim(),
+                "banco" to banco.trim(),
                 "dadosRecebimentoAtualizadosEm" to FieldValue.serverTimestamp()
             ),
             SetOptions.merge()
@@ -261,9 +266,9 @@ class FirebaseRepository(context: Context) {
         db.collection("solicitacoesAlteracao").add(
             mapOf(
                 "entregadorUid" to id,
-                "tipo" to tipo,
-                "novoValor" to novoValor,
-                "observacao" to observacao,
+                "tipo" to tipo.trim(),
+                "novoValor" to novoValor.trim(),
+                "observacao" to observacao.trim(),
                 "status" to "PENDENTE",
                 "criadaEm" to FieldValue.serverTimestamp()
             )
@@ -276,8 +281,8 @@ class FirebaseRepository(context: Context) {
             mapOf(
                 "entregadorUid" to id,
                 "corridaId" to rideId,
-                "motivo" to motivo,
-                "detalhe" to detalhe,
+                "motivo" to motivo.trim(),
+                "detalhe" to detalhe.trim(),
                 "status" to "ABERTA",
                 "criadaEm" to FieldValue.serverTimestamp()
             )
@@ -285,7 +290,7 @@ class FirebaseRepository(context: Context) {
         db.collection("corridas").document(rideId).set(
             mapOf(
                 "status" to "OCORRENCIA",
-                "ocorrenciaMotivo" to motivo,
+                "ocorrenciaMotivo" to motivo.trim(),
                 "atualizadaEm" to FieldValue.serverTimestamp()
             ),
             SetOptions.merge()
@@ -294,7 +299,8 @@ class FirebaseRepository(context: Context) {
 
     suspend fun updateLocation(lat: Double, lng: Double) {
         val id = driverId.ifBlank { return }
-        val corridaAtual = db.collection("entregadores").document(id).get().await().getString("corridaAtualId")
+        val doc = db.collection("entregadores").document(id).get().await()
+        val corridaAtual = doc.getString("corridaAtualId")
         db.collection("entregadores").document(id).set(
             mapOf(
                 "coords" to mapOf("lat" to lat, "lng" to lng),
@@ -320,10 +326,7 @@ class FirebaseRepository(context: Context) {
         ensureFirebaseSession()
         val id = driverId.ifBlank { return }
         db.collection("entregadores").document(id).set(
-            mapOf(
-                "fcmToken" to token,
-                "fcmAtualizadoEm" to FieldValue.serverTimestamp()
-            ),
+            mapOf("fcmToken" to token, "fcmAtualizadoEm" to FieldValue.serverTimestamp()),
             SetOptions.merge()
         ).await()
     }

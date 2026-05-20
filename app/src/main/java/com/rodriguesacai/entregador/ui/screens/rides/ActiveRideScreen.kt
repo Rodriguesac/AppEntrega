@@ -38,7 +38,7 @@ fun ActiveRideScreen(
             AlertBox("Nenhuma corrida em andamento.", AppColors.Muted)
             return@BasePage
         }
-        val entregaTitulo = if (ride.deliveryAddressVisible()) ride.clienteNome else ride.clienteBairro
+        val entregaTitulo = if (ride.deliveryAddressVisible()) ride.clienteNome.ifBlank { "Cliente" } else ride.clienteBairro.ifBlank { "Bairro pendente" }
         val entregaTexto = ride.safeDeliveryAddress()
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NativeMapPreview(ride)
@@ -47,7 +47,7 @@ fun ActiveRideScreen(
                 Metric("Distância", safeDistance(ride.distanciaKm), AppColors.Ink, Modifier.weight(1f))
             }
             AlertBox(humanStatus(ride.status), statusColor(ride.status))
-            AddressBlock("Coleta", ride.lojaNome, ride.pickupVisibleAddress())
+            AddressBlock("Coleta", ride.lojaNome.ifBlank { "Coleta" }, ride.pickupVisibleAddress())
             AddressBlock("Entrega", entregaTitulo, entregaTexto)
             PrimaryButton(nextActionText(ride.status)) { onAdvance(ride) }
             OutlineAction("Abrir mapa maior") { onMap() }

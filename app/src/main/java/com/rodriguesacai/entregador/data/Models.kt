@@ -6,8 +6,9 @@ import kotlin.math.roundToInt
 
 data class Driver(
     val id: String = "",
-    val nome: String = "Entregador",
+    val nome: String = "",
     val telefone: String = "",
+    val email: String = "",
     val cpf: String = "",
     val fotoUrl: String = "",
     val statusOperacional: String = "INDISPONIVEL",
@@ -16,11 +17,18 @@ data class Driver(
     val pixChave: String = "",
     val pixTipo: String = "",
     val banco: String = "",
-    val saldoHoje: Double = 0.0,
-    val saldoSemana: Double = 0.0,
-    val saldoMes: Double = 0.0,
-    val corridasHoje: Int = 0,
-    val ocultarValores: Boolean = false
+    val agencia: String = "",
+    val conta: String = "",
+    val tipoConta: String = "",
+    val saldoHoje: Double? = null,
+    val saldoSemana: Double? = null,
+    val saldoMes: Double? = null,
+    val saldoDisponivel: Double? = null,
+    val saldoPendente: Double? = null,
+    val totalAReceber: Double? = null,
+    val corridasHoje: Int? = null,
+    val ocultarValores: Boolean = false,
+    val restricaoMotivo: String = ""
 )
 
 data class Ride(
@@ -29,18 +37,18 @@ data class Ride(
     val numeroPedido: String = "",
     val entregadorUid: String = "",
     val status: String = "OFERTA_RECEBIDA",
-    val lojaNome: String = "Rodrigues Açaí e Cia.",
-    val lojaEndereco: String = "Rodrigues Açaí e Cia.",
-    val lojaLat: Double = -20.4697,
-    val lojaLng: Double = -54.6201,
-    val clienteNome: String = "Cliente",
-    val clienteBairro: String = "Bairro",
-    val clienteEnderecoCompleto: String = "Endereço liberado na etapa correta",
-    val clienteLat: Double = -20.4697,
-    val clienteLng: Double = -54.6201,
-    val valorCorrida: Double = 0.0,
-    val distanciaKm: Double = 0.0,
-    val tempoEstimadoMin: Int = 0,
+    val lojaNome: String = "",
+    val lojaEndereco: String = "",
+    val lojaLat: Double? = null,
+    val lojaLng: Double? = null,
+    val clienteNome: String = "",
+    val clienteBairro: String = "",
+    val clienteEnderecoCompleto: String = "",
+    val clienteLat: Double? = null,
+    val clienteLng: Double? = null,
+    val valorCorrida: Double? = null,
+    val distanciaKm: Double? = null,
+    val tempoEstimadoMin: Int? = null,
     val criadaEm: Timestamp? = null,
     val atualizadaEm: Timestamp? = null
 )
@@ -58,8 +66,9 @@ fun DocumentSnapshot.toDriver(): Driver {
     fun str(vararg keys: String): String = keys.firstNotNullOfOrNull { getString(it) }.orEmpty()
     return Driver(
         id = id,
-        nome = str("nome", "name").ifBlank { "Entregador" },
+        nome = str("nome", "name"),
         telefone = str("telefone", "phone", "telefoneNormalizado"),
+        email = str("email", "e-mail"),
         cpf = str("cpf", "cpfNormalizado"),
         fotoUrl = str("fotoUrl", "urlPerfil", "photoUrl"),
         statusOperacional = str("statusOperacional", "status").ifBlank { "INDISPONIVEL" },
@@ -68,34 +77,42 @@ fun DocumentSnapshot.toDriver(): Driver {
         pixChave = str("pixChave", "chavePix"),
         pixTipo = str("pixTipo", "tipoPix"),
         banco = str("banco"),
-        saldoHoje = anyDouble("saldoHoje", "ganhosHoje", "hoje"),
-        saldoSemana = anyDouble("saldoSemana", "ganhosSemana", "semana"),
-        saldoMes = anyDouble("saldoMes", "ganhosMes", "mes"),
-        corridasHoje = anyDouble("corridasHoje", "entregasHoje").roundToInt(),
-        ocultarValores = getBoolean("ocultarValores") ?: false
+        agencia = str("agencia"),
+        conta = str("conta"),
+        tipoConta = str("tipoConta", "tipo_conta"),
+        saldoHoje = optionalDouble("saldoHoje", "ganhosHoje", "hoje"),
+        saldoSemana = optionalDouble("saldoSemana", "ganhosSemana", "semana"),
+        saldoMes = optionalDouble("saldoMes", "ganhosMes", "mes"),
+        saldoDisponivel = optionalDouble("saldoDisponivel", "carteiraSaldoDisponivel"),
+        saldoPendente = optionalDouble("saldoPendente", "carteiraSaldoPendente"),
+        totalAReceber = optionalDouble("totalAReceber", "totalReceber"),
+        corridasHoje = optionalDouble("corridasHoje", "entregasHoje")?.roundToInt(),
+        ocultarValores = getBoolean("ocultarValores") ?: false,
+        restricaoMotivo = str("restricaoMotivo", "motivoRestricao")
     )
 }
 
 fun DocumentSnapshot.toRide(): Ride {
     fun str(vararg keys: String): String = keys.firstNotNullOfOrNull { getString(it) }.orEmpty()
+    val numero = str("numeroPedido", "numeroCurto", "pedidoNumero")
     return Ride(
         id = id,
         pedidoId = str("pedidoId", "orderId"),
-        numeroPedido = str("numeroPedido", "numeroCurto", "pedidoNumero").ifBlank { id.takeLast(6).uppercase() },
+        numeroPedido = numero.ifBlank { id.takeLast(6).uppercase() },
         entregadorUid = str("entregadorUid", "driverId"),
         status = str("status", "statusCorrida").ifBlank { "OFERTA_RECEBIDA" },
-        lojaNome = str("lojaNome", "storeName").ifBlank { "Rodrigues Açaí e Cia." },
-        lojaEndereco = str("lojaEndereco", "enderecoLoja").ifBlank { "Rodrigues Açaí e Cia." },
-        lojaLat = anyDouble("lojaLat", "storeLat", "origemLat").takeIf { it != 0.0 } ?: -20.4697,
-        lojaLng = anyDouble("lojaLng", "storeLng", "origemLng").takeIf { it != 0.0 } ?: -54.6201,
-        clienteNome = str("clienteNome", "customerName").ifBlank { "Cliente" },
-        clienteBairro = str("clienteBairro", "bairro").ifBlank { "Bairro" },
-        clienteEnderecoCompleto = str("clienteEnderecoCompleto", "enderecoCompleto", "deliveryAddress").ifBlank { "Endereço liberado na etapa correta" },
-        clienteLat = anyDouble("clienteLat", "deliveryLat", "destinoLat").takeIf { it != 0.0 } ?: -20.4697,
-        clienteLng = anyDouble("clienteLng", "deliveryLng", "destinoLng").takeIf { it != 0.0 } ?: -54.6201,
-        valorCorrida = anyDouble("valorCorrida", "valorEntrega", "taxaEntrega", "valor"),
-        distanciaKm = anyDouble("distanciaKm", "distancia", "km"),
-        tempoEstimadoMin = anyDouble("tempoEstimadoMin", "tempoMin", "etaMin").roundToInt(),
+        lojaNome = str("lojaNome", "storeName"),
+        lojaEndereco = str("lojaEndereco", "enderecoLoja"),
+        lojaLat = optionalDouble("lojaLat", "storeLat", "origemLat"),
+        lojaLng = optionalDouble("lojaLng", "storeLng", "origemLng"),
+        clienteNome = str("clienteNome", "customerName"),
+        clienteBairro = str("clienteBairro", "bairro"),
+        clienteEnderecoCompleto = str("clienteEnderecoCompleto", "enderecoCompleto", "deliveryAddress"),
+        clienteLat = optionalDouble("clienteLat", "deliveryLat", "destinoLat"),
+        clienteLng = optionalDouble("clienteLng", "deliveryLng", "destinoLng"),
+        valorCorrida = optionalDouble("valorCorrida", "valorEntrega", "taxaEntrega", "valor"),
+        distanciaKm = optionalDouble("distanciaKm", "distancia", "km"),
+        tempoEstimadoMin = optionalDouble("tempoEstimadoMin", "tempoMin", "etaMin")?.roundToInt(),
         criadaEm = getTimestamp("criadaEm") ?: getTimestamp("createdAt"),
         atualizadaEm = getTimestamp("atualizadaEm") ?: getTimestamp("updatedAt")
     )
@@ -105,7 +122,7 @@ fun DocumentSnapshot.toDriverNotification(): DriverNotification {
     fun str(vararg keys: String): String = keys.firstNotNullOfOrNull { getString(it) }.orEmpty()
     return DriverNotification(
         id = id,
-        titulo = str("titulo", "title").ifBlank { "Notificação" },
+        titulo = str("titulo", "title"),
         mensagem = str("mensagem", "body"),
         tipo = str("tipo", "type").ifBlank { "INFO" },
         lida = getBoolean("lida") ?: false,
@@ -113,16 +130,17 @@ fun DocumentSnapshot.toDriverNotification(): DriverNotification {
     )
 }
 
-private fun DocumentSnapshot.anyDouble(vararg keys: String): Double {
+private fun DocumentSnapshot.optionalDouble(vararg keys: String): Double? {
     for (key in keys) {
+        if (!contains(key)) continue
         val value = get(key)
         when (value) {
             is Double -> return value
             is Float -> return value.toDouble()
             is Long -> return value.toDouble()
             is Int -> return value.toDouble()
-            is String -> value.replace(",", ".").toDoubleOrNull()?.let { return it }
+            is String -> value.replace("R$", "").replace(".", "").replace(",", ".").trim().toDoubleOrNull()?.let { return it }
         }
     }
-    return 0.0
+    return null
 }
