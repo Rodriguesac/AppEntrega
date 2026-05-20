@@ -8,6 +8,10 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rodriguesacai.entregador.R
 import com.rodriguesacai.entregador.UrgentRideActivity
+import com.rodriguesacai.entregador.data.FirebaseRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class RideFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
@@ -49,6 +53,8 @@ class RideFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // O token será lido/gravadado pelo app quando o entregador estiver logado.
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { FirebaseRepository(this@RideFirebaseMessagingService).saveFcmToken(token) }
+        }
     }
 }

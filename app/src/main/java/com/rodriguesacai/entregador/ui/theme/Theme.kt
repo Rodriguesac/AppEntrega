@@ -1,43 +1,34 @@
 package com.rodriguesacai.entregador.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val DarkColors = darkColorScheme(
-    primary = Color(0xFF22C55E),
-    secondary = Color(0xFF38BDF8),
-    background = Color(0xFF0B1120),
-    surface = Color(0xFF111827),
-    surfaceVariant = Color(0xFF1F2937),
-    onPrimary = Color(0xFF052E16),
-    onBackground = Color(0xFFF8FAFC),
-    onSurface = Color(0xFFF8FAFC)
-)
+object AppColors {
+    val Bg = Color(0xFFF5F7FA)
+    val Surface = Color(0xFFFFFFFF)
+    val Ink = Color(0xFF0B1220)
+    val Muted = Color(0xFF667085)
+    val Line = Color(0xFFE5E7EB)
+    val Green = Color(0xFF12B76A)
+    val DarkGreen = Color(0xFF067647)
+    val Red = Color(0xFFE53935)
+    val Yellow = Color(0xFFFFB020)
+    val Purple = Color(0xFF3F1D70)
+}
 
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF16A34A),
-    secondary = Color(0xFF0284C7),
-    background = Color(0xFFF8FAFC),
-    surface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFFE5E7EB),
-    onPrimary = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF0F172A),
-    onSurface = Color(0xFF0F172A)
+private val Scheme = lightColorScheme(
+    primary = AppColors.Green,
+    onPrimary = Color.White,
+    background = AppColors.Bg,
+    onBackground = AppColors.Ink,
+    surface = AppColors.Surface,
+    onSurface = AppColors.Ink,
+    error = AppColors.Red
 )
 
 @Composable
-fun RodriguesTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = Typography(),
-        content = content
-    )
+fun RodriguesTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = Scheme, content = content)
 }

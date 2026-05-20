@@ -30,12 +30,12 @@ data class Ride(
     val entregadorUid: String = "",
     val status: String = "OFERTA_RECEBIDA",
     val lojaNome: String = "Rodrigues Açaí e Cia.",
-    val lojaEndereco: String = "Endereço da loja",
+    val lojaEndereco: String = "Rodrigues Açaí e Cia.",
     val lojaLat: Double = -20.4697,
     val lojaLng: Double = -54.6201,
     val clienteNome: String = "Cliente",
     val clienteBairro: String = "Bairro",
-    val clienteEnderecoCompleto: String = "Endereço liberado após coleta",
+    val clienteEnderecoCompleto: String = "Endereço liberado na etapa correta",
     val clienteLat: Double = -20.4697,
     val clienteLng: Double = -54.6201,
     val valorCorrida: Double = 0.0,
@@ -54,20 +54,13 @@ data class DriverNotification(
     val criadaEm: Timestamp? = null
 )
 
-data class AppConfig(
-    val emManutencao: Boolean = false,
-    val mensagemManutencao: String = "Sistema em manutenção.",
-    val versaoMinima: Int = 1,
-    val mensagemAtualizacao: String = "Existe uma atualização disponível."
-)
-
 fun DocumentSnapshot.toDriver(): Driver {
     fun str(vararg keys: String): String = keys.firstNotNullOfOrNull { getString(it) }.orEmpty()
     return Driver(
         id = id,
-        nome = str("nome", "name" ).ifBlank { "Entregador" },
-        telefone = str("telefone", "phone"),
-        cpf = str("cpf"),
+        nome = str("nome", "name").ifBlank { "Entregador" },
+        telefone = str("telefone", "phone", "telefoneNormalizado"),
+        cpf = str("cpf", "cpfNormalizado"),
         fotoUrl = str("fotoUrl", "urlPerfil", "photoUrl"),
         statusOperacional = str("statusOperacional", "status").ifBlank { "INDISPONIVEL" },
         verificado = getBoolean("verificado") ?: getBoolean("aprovado") ?: false,
@@ -93,13 +86,13 @@ fun DocumentSnapshot.toRide(): Ride {
         status = str("status", "statusCorrida").ifBlank { "OFERTA_RECEBIDA" },
         lojaNome = str("lojaNome", "storeName").ifBlank { "Rodrigues Açaí e Cia." },
         lojaEndereco = str("lojaEndereco", "enderecoLoja").ifBlank { "Rodrigues Açaí e Cia." },
-        lojaLat = anyDouble("lojaLat", "storeLat", "origemLat"),
-        lojaLng = anyDouble("lojaLng", "storeLng", "origemLng"),
+        lojaLat = anyDouble("lojaLat", "storeLat", "origemLat").takeIf { it != 0.0 } ?: -20.4697,
+        lojaLng = anyDouble("lojaLng", "storeLng", "origemLng").takeIf { it != 0.0 } ?: -54.6201,
         clienteNome = str("clienteNome", "customerName").ifBlank { "Cliente" },
         clienteBairro = str("clienteBairro", "bairro").ifBlank { "Bairro" },
         clienteEnderecoCompleto = str("clienteEnderecoCompleto", "enderecoCompleto", "deliveryAddress").ifBlank { "Endereço liberado na etapa correta" },
-        clienteLat = anyDouble("clienteLat", "deliveryLat", "destinoLat"),
-        clienteLng = anyDouble("clienteLng", "deliveryLng", "destinoLng"),
+        clienteLat = anyDouble("clienteLat", "deliveryLat", "destinoLat").takeIf { it != 0.0 } ?: -20.4697,
+        clienteLng = anyDouble("clienteLng", "deliveryLng", "destinoLng").takeIf { it != 0.0 } ?: -54.6201,
         valorCorrida = anyDouble("valorCorrida", "valorEntrega", "taxaEntrega", "valor"),
         distanciaKm = anyDouble("distanciaKm", "distancia", "km"),
         tempoEstimadoMin = anyDouble("tempoEstimadoMin", "tempoMin", "etaMin").roundToInt(),

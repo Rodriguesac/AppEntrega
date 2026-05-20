@@ -67,11 +67,51 @@ class FirebaseRepository(context: Context) {
                 "online" to false,
                 "verificado" to true,
                 "appNativo" to true,
+                "saldoHoje" to 0.0,
+                "saldoSemana" to 0.0,
+                "saldoMes" to 0.0,
+                "corridasHoje" to 0,
                 "atualizadoEm" to FieldValue.serverTimestamp()
             ),
             SetOptions.merge()
         ).await()
         return driverId
+    }
+
+    suspend fun submitRegistration(nome: String, cpf: String, telefone: String, placa: String) {
+        ensureFirebaseSession()
+        val cleanCpf = cpf.filter { it.isDigit() }
+        val cleanPhone = telefone.filter { it.isDigit() }
+        db.collection("cadastrosEntregador").add(
+            mapOf(
+                "nome" to nome,
+                "cpfNormalizado" to cleanCpf,
+                "telefoneNormalizado" to cleanPhone,
+                "placa" to placa.uppercase(),
+                "status" to "PENDENTE",
+                "origem" to "APP_NATIVO",
+                "criadaEm" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
+    suspend fun createPassword(identifier: String, password: String) {
+        ensureFirebaseSession()
+        val clean = identifier.filter { it.isDigit() }
+        val snap = db.collection("entregadores")
+            .whereEqualTo("cpfNormalizado", clean)
+            .limit(1)
+            .get()
+            .await()
+        val doc = snap.documents.firstOrNull() ?: throw IllegalStateException("Cadastro não encontrado para criar senha.")
+        db.collection("entregadores").document(doc.id).set(
+            mapOf(
+                "senhaApp" to password,
+                "senhaCriadaEm" to FieldValue.serverTimestamp(),
+                "appNativo" to true
+            ),
+            SetOptions.merge()
+        ).await()
     }
 
     fun logout() {
@@ -140,6 +180,7 @@ class FirebaseRepository(context: Context) {
     }
 
     suspend fun acceptRide(rideId: String) = updateRide(rideId, "ACEITA", "aceitaEm")
+
     suspend fun rejectRide(rideId: String, motivo: String) {
         val id = driverId.ifBlank { return }
         db.collection("corridas").document(rideId).set(
@@ -231,15 +272,16 @@ class FirebaseRepository(context: Context) {
 
     suspend fun createOccurrence(rideId: String, motivo: String, detalhe: String) {
         val id = driverId.ifBlank { return }
-        val data = mapOf(
-            "entregadorUid" to id,
-            "corridaId" to rideId,
-            "motivo" to motivo,
-            "detalhe" to detalhe,
-            "status" to "ABERTA",
-            "criadaEm" to FieldValue.serverTimestamp()
-        )
-        db.collection("ocorrencias").add(data).await()
+        db.collection("ocorrencias").add(
+            mapOf(
+                "entregadorUid" to id,
+                "corridaId" to rideId,
+                "motivo" to motivo,
+                "detalhe" to detalhe,
+                "status" to "ABERTA",
+                "criadaEm" to FieldValue.serverTimestamp()
+            )
+        ).await()
         db.collection("corridas").document(rideId).set(
             mapOf(
                 "status" to "OCORRENCIA",
@@ -252,12 +294,35 @@ class FirebaseRepository(context: Context) {
 
     suspend fun updateLocation(lat: Double, lng: Double) {
         val id = driverId.ifBlank { return }
+        val corridaAtual = db.collection("entregadores").document(id).get().await().getString("corridaAtualId")
         db.collection("entregadores").document(id).set(
             mapOf(
                 "coords" to mapOf("lat" to lat, "lng" to lng),
                 "lat" to lat,
                 "lng" to lng,
-                "localizacaoAtualizadaEm" to Timestamp.now()
+                "localizacaoAtualizadaEm" to Timestamp.now(),
+                "rastreamentoAtivo" to true
+            ),
+            SetOptions.merge()
+        ).await()
+        if (!corridaAtual.isNullOrBlank()) {
+            db.collection("corridas").document(corridaAtual).set(
+                mapOf(
+                    "entregadorCoords" to mapOf("lat" to lat, "lng" to lng),
+                    "localizacaoEntregadorAtualizadaEm" to Timestamp.now()
+                ),
+                SetOptions.merge()
+            ).await()
+        }
+    }
+
+    suspend fun saveFcmToken(token: String) {
+        ensureFirebaseSession()
+        val id = driverId.ifBlank { return }
+        db.collection("entregadores").document(id).set(
+            mapOf(
+                "fcmToken" to token,
+                "fcmAtualizadoEm" to FieldValue.serverTimestamp()
             ),
             SetOptions.merge()
         ).await()

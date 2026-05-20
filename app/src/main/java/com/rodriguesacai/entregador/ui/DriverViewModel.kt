@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.messaging.FirebaseMessaging
 import com.rodriguesacai.entregador.data.Driver
 import com.rodriguesacai.entregador.data.DriverNotification
 import com.rodriguesacai.entregador.data.FirebaseRepository
@@ -12,11 +13,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 data class DriverUiState(
     val loading: Boolean = false,
     val logged: Boolean = false,
     val error: String? = null,
+    val message: String? = null,
     val driver: Driver? = null,
     val activeRides: List<Ride> = emptyList(),
     val history: List<Ride> = emptyList(),
@@ -27,6 +30,7 @@ class DriverViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = FirebaseRepository(app)
     private val _state = MutableStateFlow(DriverUiState(logged = repo.hasSession))
     val state: StateFlow<DriverUiState> = _state.asStateFlow()
+
     private var driverReg: ListenerRegistration? = null
     private var activeReg: ListenerRegistration? = null
     private var historyReg: ListenerRegistration? = null
@@ -37,24 +41,40 @@ class DriverViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun login(identifier: String, password: String) = viewModelScope.launch {
-        _state.value = _state.value.copy(loading = true, error = null)
+        _state.value = _state.value.copy(loading = true, error = null, message = null)
         val result = repo.login(identifier, password)
         result.onSuccess {
             _state.value = _state.value.copy(loading = false, logged = true)
             startListeners()
+            syncFcmToken()
         }.onFailure {
             _state.value = _state.value.copy(loading = false, error = it.message ?: "Falha no login")
         }
     }
 
     fun enterDemo() = viewModelScope.launch {
-        _state.value = _state.value.copy(loading = true, error = null)
+        _state.value = _state.value.copy(loading = true, error = null, message = null)
         runCatching { repo.enterDemo() }
             .onSuccess {
                 _state.value = _state.value.copy(loading = false, logged = true)
                 startListeners()
+                syncFcmToken()
             }
-            .onFailure { _state.value = _state.value.copy(loading = false, error = it.message) }
+            .onFailure { setError(it) }
+    }
+
+    fun submitRegistration(nome: String, cpf: String, telefone: String, placa: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(loading = true, error = null, message = null)
+        runCatching { repo.submitRegistration(nome, cpf, telefone, placa) }
+            .onSuccess { _state.value = _state.value.copy(loading = false, message = "Cadastro enviado para análise.") }
+            .onFailure { setError(it) }
+    }
+
+    fun createPassword(identifier: String, password: String) = viewModelScope.launch {
+        _state.value = _state.value.copy(loading = true, error = null, message = null)
+        runCatching { repo.createPassword(identifier, password) }
+            .onSuccess { _state.value = _state.value.copy(loading = false, message = "Senha criada. Faça login.") }
+            .onFailure { setError(it) }
     }
 
     fun logout() {
@@ -96,7 +116,16 @@ class DriverViewModel(app: Application) : AndroidViewModel(app) {
     fun requestChange(tipo: String, novoValor: String, obs: String) = viewModelScope.launch { runCatching { repo.requestChange(tipo, novoValor, obs) }.onFailure { setError(it) } }
     fun createOccurrence(rideId: String, motivo: String, detalhe: String) = viewModelScope.launch { runCatching { repo.createOccurrence(rideId, motivo, detalhe) }.onFailure { setError(it) } }
 
-    private fun setError(t: Throwable) { _state.value = _state.value.copy(error = t.message ?: "Erro inesperado") }
+    private fun syncFcmToken() = viewModelScope.launch {
+        runCatching {
+            val token = FirebaseMessaging.getInstance().token.await()
+            repo.saveFcmToken(token)
+        }
+    }
+
+    private fun setError(t: Throwable) {
+        _state.value = _state.value.copy(loading = false, error = t.message ?: "Erro inesperado")
+    }
 
     override fun onCleared() {
         clearListeners()

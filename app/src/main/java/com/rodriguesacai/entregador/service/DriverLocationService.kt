@@ -12,15 +12,17 @@ import com.rodriguesacai.entregador.data.FirebaseRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class DriverLocationService : Service() {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        NotificationHelper.createChannels(this)
         startForeground(7701, NotificationHelper.trackingNotification(this))
         val repo = FirebaseRepository(this)
         val fused = LocationServices.getFusedLocationProviderClient(this)
