@@ -85,8 +85,7 @@ private fun formatAddressValue(value: Any?): String {
         val cep = first("cep", "zip")
         val line1 = listOf(street, number.takeIf { it.isNotBlank() }?.let { "nº $it" }).filterNotNull().filter { it.isNotBlank() }.joinToString(", ")
         val line2 = listOf(neighborhood, city, uf).filter { it.isNotBlank() }.joinToString(" • ")
-        return listOf(line1, line2, cep.takeIf { it.isNotBlank() }?.let { "CEP $it" }.orEmpty()).filter { it.isNotBlank() }.joinToString("
-")
+        return listOf(line1, line2, cep.takeIf { it.isNotBlank() }?.let { "CEP $it" }.orEmpty()).filter { it.isNotBlank() }.joinToString("\n")
     }
     val raw = value.toString().trim()
     if (raw.startsWith("{") && raw.endsWith("}")) {
