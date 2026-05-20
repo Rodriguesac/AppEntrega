@@ -12,13 +12,23 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 35
-        versionCode = 600
-        versionName = "6.0.0-nativo-limpo"
+        versionCode = 700
+        versionName = "7.0.0-limpo-real"
+    }
+
+    sourceSets.getByName("main") {
+        manifest.srcFile("src/clean/AndroidManifest.xml")
+        java.setSrcDirs(listOf("src/clean/java"))
+        res.setSrcDirs(listOf("src/clean/res"))
+        assets.setSrcDirs(listOf("src/clean/assets"))
     }
 }
 
 kotlin {
     jvmToolchain(17)
+    sourceSets.getByName("main") {
+        kotlin.srcDirs("src/clean/java")
+    }
 }
 
 dependencies {
