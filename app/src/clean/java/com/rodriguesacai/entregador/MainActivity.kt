@@ -534,7 +534,7 @@ class MainActivity : Activity() {
     private fun shell(active: String): FrameLayout {
         val root = FrameLayout(this).apply { setBackgroundColor(0xFFF6F8F7.toInt()) }
         val vertical = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scroll = ScrollView(this).apply { fillViewport = false }
+        val scroll = ScrollView(this).apply { isFillViewport = false }
         val content = LinearLayout(this).apply {
             tag = "content"
             orientation = LinearLayout.VERTICAL

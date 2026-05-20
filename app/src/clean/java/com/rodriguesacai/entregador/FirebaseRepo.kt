@@ -2,7 +2,6 @@ package com.rodriguesacai.entregador
 
 import android.content.Context
 import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -12,7 +11,6 @@ import java.util.Locale
 
 class FirebaseRepo(private val context: Context) {
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
-    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val listeners = mutableListOf<ListenerRegistration>()
 
     init {
@@ -25,31 +23,18 @@ class FirebaseRepo(private val context: Context) {
     }
 
     fun ensureAuth(onReady: () -> Unit, onError: (String) -> Unit) {
-        if (auth.currentUser != null) {
+        try {
+            FirebaseApp.initializeApp(context)
             onReady()
-            return
+        } catch (e: Exception) {
+            onError("Firebase não inicializou: ${e.message ?: "sem detalhe"}")
         }
-        auth.signInAnonymously()
-            .addOnSuccessListener { onReady() }
-            .addOnFailureListener { onError("Firebase bloqueou autenticação anônima: ${it.message ?: "sem detalhe"}") }
     }
 
     fun login(identifier: String, password: String, onResult: (DriverProfile?, String?) -> Unit) {
         val clean = identifier.trim()
         if (clean.isEmpty()) {
             onResult(null, "Informe CPF, telefone ou e-mail.")
-            return
-        }
-        if (clean.contains("@") && password.isNotBlank()) {
-            auth.signInWithEmailAndPassword(clean, password)
-                .addOnSuccessListener {
-                    findDriverByUid(auth.currentUser?.uid.orEmpty()) { profile, error ->
-                        if (profile != null) onResult(profile, null) else onResult(null, error ?: "Usuário autenticado, mas cadastro do entregador não foi encontrado.")
-                    }
-                }
-                .addOnFailureListener {
-                    ensureAuth({ findDriverByIdentifier(clean, password, onResult) }, { err -> onResult(null, err) })
-                }
             return
         }
         ensureAuth({ findDriverByIdentifier(clean, password, onResult) }, { err -> onResult(null, err) })

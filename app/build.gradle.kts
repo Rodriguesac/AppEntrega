@@ -12,8 +12,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 23
         targetSdk = 35
-        versionCode = 800
-        versionName = "8.0.0"
+        versionCode = 900
+        versionName = "9.0.0"
     }
 
     sourceSets {
@@ -41,7 +41,6 @@ android {
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
     implementation("androidx.core:core-ktx:1.13.1")
