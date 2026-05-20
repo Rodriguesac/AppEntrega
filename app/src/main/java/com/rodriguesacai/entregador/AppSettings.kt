@@ -47,7 +47,7 @@ object AppSettings {
     fun setThemeMode(context: Context, value: String) {
         val safe = when (value) {
             THEME_LIGHT, THEME_DARK -> value
-            else -> THEME_DARK
+            else -> THEME_LIGHT
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
@@ -59,7 +59,7 @@ object AppSettings {
 
     fun themeLabel(value: String): String = when (value) {
         THEME_LIGHT -> "Claro"
-        else -> "Escuro"
+        else -> "Claro"
     }
 
     fun getHideValues(context: Context): Boolean {
