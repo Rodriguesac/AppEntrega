@@ -12,8 +12,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 23
         targetSdk = 35
-        versionCode = 900
-        versionName = "9.0.0"
+        versionCode = 1000
+        versionName = "10.0.0"
     }
 
     sourceSets {

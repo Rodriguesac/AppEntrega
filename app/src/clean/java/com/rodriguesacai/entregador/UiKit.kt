@@ -15,9 +15,14 @@ import kotlin.math.roundToInt
 
 fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 fun Activity.dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
-fun medium(): Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-fun bold(): Typeface = Typeface.create("sans-serif", Typeface.BOLD)
-fun normal(): Typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+fun appTypeface(weight: Int = Typeface.NORMAL): Typeface = try {
+    Typeface.create("Roboto", weight)
+} catch (_: Exception) {
+    Typeface.create(Typeface.SANS_SERIF, weight)
+}
+fun medium(): Typeface = try { Typeface.create("Roboto Medium", Typeface.NORMAL) } catch (_: Exception) { appTypeface(Typeface.BOLD) }
+fun bold(): Typeface = appTypeface(Typeface.BOLD)
+fun normal(): Typeface = appTypeface(Typeface.NORMAL)
 
 fun rounded(color: Int, radius: Float, strokeColor: Int? = null, strokeWidth: Int = 0): GradientDrawable = GradientDrawable().apply {
     setColor(color)
@@ -30,14 +35,17 @@ fun Context.label(text: String, size: Float = 14f, color: Int = 0xFF45515C.toInt
     textSize = size
     setTextColor(color)
     typeface = style
-    includeFontPadding = true
+    includeFontPadding = false
+    letterSpacing = 0f
+    if (android.os.Build.VERSION.SDK_INT >= 21) fontFeatureSettings = "kern"
 }
 
-fun Context.actionButton(text: String, primary: Boolean = true, onClick: () -> Unit): Button = Button(this).apply {
+fun Context.actionButton(text: String, primary: Boolean = true, onClick: () -> Unit): Button = Button(this, null, 0).apply {
     this.text = text
     textSize = 15f
     isAllCaps = false
     typeface = medium()
+    includeFontPadding = false
     setTextColor(if (primary) Color.WHITE else 0xFF18A85A.toInt())
     background = if (primary) rounded(0xFF18A85A.toInt(), dp(18).toFloat()) else rounded(Color.WHITE, dp(18).toFloat(), 0xFFBCEFD1.toInt(), dp(1))
     setOnClickListener { onClick() }

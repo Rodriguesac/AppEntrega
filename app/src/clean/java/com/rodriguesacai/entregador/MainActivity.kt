@@ -332,7 +332,7 @@ class MainActivity : Activity() {
         col.addView(topTitle("Atualização do app", "Controle de versão vindo do Firebase, quando cadastrado."))
         val c = card(18, 26)
         c.addView(label("Versão instalada", 13f, 0xFF66736D.toInt(), medium()))
-        c.addView(label("8.0.0", 22f, 0xFF112018.toInt(), bold()))
+        c.addView(label("10.0.0", 22f, 0xFF112018.toInt(), bold()))
         c.addDivider()
         if (info == null || info.latestVersion.isBlank()) {
             c.addView(label("Nenhuma configuração de atualização encontrada no Firebase.", 14f, 0xFF66736D.toInt()))
@@ -356,10 +356,10 @@ class MainActivity : Activity() {
         c.addView(label(money(ride.value), 30f, 0xFF18A85A.toInt(), bold()))
         c.addDivider()
         c.addView(label("Coleta", 13f, 0xFF66736D.toInt(), medium()))
-        c.addView(label(ride.pickup.ifBlank { "Endereço de coleta não informado." }, 15f, 0xFF112018.toInt()))
+        c.addView(label(cleanAddress(ride.pickup, "Rodrigues Açaí e Cia"), 15f, 0xFF112018.toInt()))
         c.addSpace(10)
         c.addView(label("Entrega", 13f, 0xFF66736D.toInt(), medium()))
-        c.addView(label(ride.dropoff.ifBlank { "Endereço de entrega não liberado/informado." }, 15f, 0xFF112018.toInt()))
+        c.addView(label(cleanAddress(ride.dropoff, "Endereço de entrega não liberado/informado."), 15f, 0xFF112018.toInt()))
         c.addSpace(10)
         c.addView(label("Cliente: ${ride.customerName.ifBlank { "não informado" }}", 14f, 0xFF66736D.toInt()))
         c.addView(label("Pagamento: ${ride.payment.ifBlank { "não informado" }}", 14f, 0xFF66736D.toInt()))
@@ -395,13 +395,7 @@ class MainActivity : Activity() {
     private fun homeHeader(p: DriverProfile): View {
         val row = horizontal(this, Gravity.CENTER_VERTICAL)
         row.setPadding(0, 0, 0, dp(14))
-        val photo = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            background = rounded(0xFFE4F8EC.toInt(), dp(28).toFloat())
-            setImageResource(R.drawable.ic_launcher_foreground)
-        }
-        if (p.photoUrl.isNotBlank()) loadImage(photo, p.photoUrl)
-        row.addView(photo, LinearLayout.LayoutParams(dp(58), dp(58)))
+        row.addView(avatarView(p), LinearLayout.LayoutParams(dp(58), dp(58)))
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0) }
         texts.addView(label("Olá, ${p.name.split(" ").firstOrNull().orEmpty().ifBlank { "Entregador" }}", 24f, 0xFF112018.toInt(), bold()))
         texts.addView(label("Pronto para receber corridas", 14f, 0xFF66736D.toInt()))
@@ -424,7 +418,7 @@ class MainActivity : Activity() {
             else -> 0xFF202623.toInt()
         }
         return TextView(this).apply {
-            this.text = "  $text  ›"
+            this.text = "  $text  ˅"
             textSize = 17f
             setTextColor(Color.WHITE)
             typeface = bold()
@@ -445,7 +439,7 @@ class MainActivity : Activity() {
         val c = card(18, 26)
         val row = horizontal(this)
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        left.addView(label("Ganhos encontrados", 14f, 0xFF66736D.toInt(), medium()))
+        left.addView(label("Ganhos de hoje", 14f, 0xFF66736D.toInt(), medium()))
         left.addView(label(money(total), 30f, 0xFF112018.toInt(), bold()))
         row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.RIGHT }
@@ -519,8 +513,11 @@ class MainActivity : Activity() {
         c.addView(row)
         c.addView(label(humanStatus(ride.status), 13f, 0xFF18A85A.toInt(), medium()))
         c.addDivider()
-        c.addView(label("Coleta: ${ride.pickup.ifBlank { "não informada" }}", 14f, 0xFF45515C.toInt()))
-        c.addView(label("Entrega: ${ride.dropoff.ifBlank { ride.neighborhood.ifBlank { "não liberada/informada" } }}", 14f, 0xFF45515C.toInt()))
+        c.addView(label("Coleta", 12f, 0xFF8C9792.toInt(), medium()))
+        c.addView(label(cleanAddress(ride.pickup, "Rodrigues Açaí e Cia"), 14f, 0xFF45515C.toInt()).apply { maxLines = 2 })
+        c.addSpace(6)
+        c.addView(label("Entrega", 12f, 0xFF8C9792.toInt(), medium()))
+        c.addView(label(cleanAddress(ride.dropoff.ifBlank { ride.neighborhood }, "Endereço não liberado/informado"), 14f, 0xFF45515C.toInt()).apply { maxLines = 3 })
         val meta = listOf(ride.distance, ride.duration, shortDate(ride.createdAt)).filter { it.isNotBlank() }.joinToString(" • ")
         c.addView(label(meta, 12f, 0xFF8C9792.toInt()))
         return c.also { it.layoutParams = margin() }
@@ -689,6 +686,33 @@ class MainActivity : Activity() {
         val network = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun avatarView(p: DriverProfile): View {
+        val frame = FrameLayout(this).apply { background = rounded(0xFFE4F8EC.toInt(), dp(29).toFloat()) }
+        if (p.photoUrl.isNotBlank()) {
+            val img = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+            frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            loadImage(img, p.photoUrl)
+        } else {
+            val initials = p.name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifBlank { "UP" }
+            frame.addView(TextView(this).apply {
+                text = initials
+                gravity = Gravity.CENTER
+                textSize = 18f
+                setTextColor(0xFF18A85A.toInt())
+                typeface = bold()
+                includeFontPadding = false
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        return frame
+    }
+
+    private fun cleanAddress(value: String, fallback: String): String {
+        val t = value.trim()
+        if (t.isBlank()) return fallback
+        if (t.contains("lat=", true) || t.contains("lng=", true) || t.contains("lon=", true)) return "Endereço recebido sem formatação pelo gestor"
+        return if (t.length > 160) t.take(157).trimEnd() + "..." else t
     }
 
     private fun loadImage(view: ImageView, url: String) {

@@ -66,6 +66,49 @@ data class AppUpdateInfo(
     val mandatory: Boolean = false
 )
 
+private fun formatAddressValue(value: Any?): String {
+    if (value == null) return ""
+    if (value is Map<*, *>) {
+        fun first(vararg keys: String): String {
+            for (k in keys) {
+                val v = value[k] ?: value[k.lowercase(Locale.ROOT)] ?: value[k.uppercase(Locale.ROOT)]
+                val t = v?.toString()?.trim().orEmpty()
+                if (t.isNotBlank() && t != "null") return t
+            }
+            return ""
+        }
+        val street = first("rua", "logradouro", "endereco", "address", "street")
+        val number = first("numero", "número", "number")
+        val neighborhood = first("bairro", "neighborhood")
+        val city = first("cidade", "city")
+        val uf = first("uf", "estado", "state")
+        val cep = first("cep", "zip")
+        val line1 = listOf(street, number.takeIf { it.isNotBlank() }?.let { "nº $it" }).filterNotNull().filter { it.isNotBlank() }.joinToString(", ")
+        val line2 = listOf(neighborhood, city, uf).filter { it.isNotBlank() }.joinToString(" • ")
+        return listOf(line1, line2, cep.takeIf { it.isNotBlank() }?.let { "CEP $it" }.orEmpty()).filter { it.isNotBlank() }.joinToString("
+")
+    }
+    val raw = value.toString().trim()
+    if (raw.startsWith("{") && raw.endsWith("}")) {
+        val parts = raw.removePrefix("{").removeSuffix("}").split(",").mapNotNull { item ->
+            val idx = item.indexOf('=')
+            if (idx <= 0) null else item.substring(0, idx).trim() to item.substring(idx + 1).trim()
+        }.toMap()
+        if (parts.isNotEmpty()) return formatAddressValue(parts)
+    }
+    if (raw.contains("lat=") || raw.contains("lng=") || raw.contains("lon=")) return "Endereço não formatado pelo gestor"
+    return raw
+}
+
+fun DocumentSnapshot.addr(vararg names: String): String {
+    for (name in names) {
+        val value = get(name) ?: continue
+        val text = formatAddressValue(value)
+        if (text.isNotBlank() && text != "null") return text
+    }
+    return ""
+}
+
 fun DocumentSnapshot.str(vararg names: String): String {
     for (name in names) {
         val value = get(name) ?: continue
@@ -136,8 +179,8 @@ fun DocumentSnapshot.driverFrom(collection: String): DriverProfile {
 
 fun DocumentSnapshot.rideFrom(collection: String): RideItem {
     val code = str("numeroPedido", "pedidoNumero", "codigo", "orderNumber", "shortId").ifBlank { id.takeLast(6).uppercase(Locale.ROOT) }
-    val pickupAddress = str("enderecoColeta", "coletaEndereco", "lojaEndereco", "origem", "pickupAddress", "loja")
-    val deliveryAddress = str("enderecoEntrega", "entregaEndereco", "clienteEndereco", "destino", "dropoffAddress", "endereco")
+    val pickupAddress = addr("enderecoColeta", "coletaEndereco", "lojaEndereco", "origem", "pickupAddress", "loja")
+    val deliveryAddress = addr("enderecoEntrega", "entregaEndereco", "clienteEndereco", "destino", "dropoffAddress", "endereco")
     return RideItem(
         id = id,
         collection = collection,
