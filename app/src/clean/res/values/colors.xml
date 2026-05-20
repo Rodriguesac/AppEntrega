@@ -1,7 +1,7 @@
 <resources>
     <color name="white">#FFFFFFFF</color>
-    <color name="black">#FF101418</color>
-    <color name="up_green">#FF16A34A</color>
-    <color name="up_green_dark">#FF047857</color>
-    <color name="up_background">#FFF7F9F8</color>
+    <color name="black">#FF000000</color>
+    <color name="up_green">#FF18A85A</color>
+    <color name="up_green_dark">#FF087B3A</color>
+    <color name="up_bg">#FFF6F8F7</color>
 </resources>
