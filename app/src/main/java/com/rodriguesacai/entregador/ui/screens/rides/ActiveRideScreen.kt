@@ -21,6 +21,8 @@ import com.rodriguesacai.entregador.ui.nextActionText
 import com.rodriguesacai.entregador.ui.statusColor
 import com.rodriguesacai.entregador.ui.theme.AppColors
 
+private fun Ride.deliveryVisible(): Boolean = status in listOf("PEDIDO_RETIRADO", "INDO_ENTREGA", "ENTREGADOR_NO_LOCAL", "OCORRENCIA", "FINALIZADA")
+
 @Composable
 fun ActiveRideScreen(
     ride: Ride?,
@@ -34,6 +36,8 @@ fun ActiveRideScreen(
             AlertBox("Nenhuma corrida em andamento.", AppColors.Muted)
             return@BasePage
         }
+        val entregaTitulo = if (ride.deliveryVisible()) ride.clienteNome else ride.clienteBairro
+        val entregaTexto = if (ride.deliveryVisible()) ride.clienteEnderecoCompleto else "Endereço completo liberado depois da retirada."
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NativeMapPreview(ride)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -42,7 +46,7 @@ fun ActiveRideScreen(
             }
             AlertBox(humanStatus(ride.status), statusColor(ride.status))
             AddressBlock("Coleta", ride.lojaNome, ride.lojaEndereco)
-            AddressBlock("Entrega", ride.clienteNome, ride.clienteEnderecoCompleto)
+            AddressBlock("Entrega", entregaTitulo, entregaTexto)
             PrimaryButton(nextActionText(ride.status)) { onAdvance(ride) }
             OutlineAction("Abrir mapa maior") { onMap() }
             OutlineAction("Registrar ocorrência") { onOccurrence(ride) }
