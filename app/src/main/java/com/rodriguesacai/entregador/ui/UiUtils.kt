@@ -32,7 +32,7 @@ fun Ride.deliveryAddressVisible(): Boolean = status in listOf(
 fun Ride.hasPickupLocation(): Boolean = lojaLat != null && lojaLng != null
 fun Ride.hasDeliveryLocation(): Boolean = clienteLat != null && clienteLng != null
 fun Ride.pickupVisibleAddress(): String = lojaEndereco.ifBlank { "Endereço da coleta pendente" }
-fun Ride.deliveryVisibleTitle(): String = if (deliveryAddressVisible()) clienteNome.ifBlank { "Cliente" } else clienteBairro.ifBlank { "Bairro pendente" }
+fun Ride.deliveryVisibleTitle(): String = if (deliveryAddressVisible()) clienteNome.ifBlank { "Cliente não informado" } else clienteBairro.ifBlank { "Bairro pendente" }
 fun Ride.safeDeliveryAddress(): String = if (deliveryAddressVisible()) {
     clienteEnderecoCompleto.ifBlank { "Endereço do cliente pendente" }
 } else {

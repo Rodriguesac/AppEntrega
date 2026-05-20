@@ -2,37 +2,41 @@ package com.rodriguesacai.entregador.ui.screens.rides
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.material.icons.rounded.Route
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.rodriguesacai.entregador.data.Ride
-import com.rodriguesacai.entregador.ui.components.AddressBlock
-import com.rodriguesacai.entregador.ui.components.AlertBox
-import com.rodriguesacai.entregador.ui.components.BasePage
-import com.rodriguesacai.entregador.ui.components.NativeMapPreview
-import com.rodriguesacai.entregador.ui.components.OutlineAction
-import com.rodriguesacai.entregador.ui.deliveryAddressVisible
+import com.rodriguesacai.entregador.ui.components.EmptyState
+import com.rodriguesacai.entregador.ui.components.LocationRow
+import com.rodriguesacai.entregador.ui.components.PrimaryAction
+import com.rodriguesacai.entregador.ui.components.RoutePreviewCard
+import com.rodriguesacai.entregador.ui.components.UpPage
 import com.rodriguesacai.entregador.ui.openNavigation
-import com.rodriguesacai.entregador.ui.pickupVisibleAddress
 import com.rodriguesacai.entregador.ui.safeDeliveryAddress
-import com.rodriguesacai.entregador.ui.theme.AppColors
+import com.rodriguesacai.entregador.ui.design.UpColors
 
 @Composable
 fun MapRouteScreen(ride: Ride?, onBack: () -> Unit) {
     val context = LocalContext.current
-    BasePage("Mapa da rota", "Mapa real quando a corrida tiver coordenadas", onBack) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            NativeMapPreview(ride, Modifier.fillMaxWidth().height(420.dp))
-            if (ride != null) {
-                val entregaTitulo = if (ride.deliveryAddressVisible()) ride.clienteNome.ifBlank { "Cliente" } else ride.clienteBairro.ifBlank { "Bairro pendente" }
-                AddressBlock("Coleta", ride.lojaNome.ifBlank { "Coleta" }, ride.pickupVisibleAddress())
-                AddressBlock("Entrega", entregaTitulo, ride.safeDeliveryAddress())
-                OutlineAction("Iniciar navegação") { openNavigation(context, ride) }
+    UpPage(title = "Mapa da rota", onBack = onBack) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (ride == null) {
+                EmptyState("Rota indisponível", "A corrida atual não foi encontrada no Firebase.", Icons.Rounded.Route, "Voltar", onBack)
             } else {
-                AlertBox("Nenhuma corrida ativa para abrir rota.", AppColors.Muted)
+                RoutePreviewCard(ride = ride, height = 390.dp)
+                LocationRow("Coleta", ride.lojaNome.ifBlank { "Coleta pendente" }, ride.lojaEndereco.ifBlank { "Endereço da coleta pendente" }, UpColors.Green)
+                LocationRow("Entrega", ride.clienteBairro.ifBlank { "Bairro pendente" }, ride.safeDeliveryAddress(), UpColors.Orange)
+                Spacer(Modifier.weight(1f))
+                PrimaryAction("Iniciar navegação", onClick = { openNavigation(context, ride) }, icon = Icons.Rounded.Navigation)
+                Spacer(Modifier.height(8.dp))
             }
         }
     }

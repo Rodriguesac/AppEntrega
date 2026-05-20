@@ -2,22 +2,31 @@ package com.rodriguesacai.entregador.ui.screens.support
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Modifier
 import com.rodriguesacai.entregador.data.DriverNotification
-import com.rodriguesacai.entregador.ui.components.BasePage
-import com.rodriguesacai.entregador.ui.components.CardLine
-import com.rodriguesacai.entregador.ui.components.EmptyCard
-import com.rodriguesacai.entregador.ui.shortDate
-import com.rodriguesacai.entregador.ui.theme.AppColors
+import com.rodriguesacai.entregador.ui.components.CompactList
+import com.rodriguesacai.entregador.ui.components.EmptyState
+import com.rodriguesacai.entregador.ui.components.NotificationRow
+import com.rodriguesacai.entregador.ui.components.UpPage
+import com.rodriguesacai.entregador.ui.navigation.AppRoute
 
 @Composable
-fun NotificationsScreen(items: List<DriverNotification>, onBack: () -> Unit) {
-    BasePage("Notificações", "Alertas da operação", onBack) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (items.isEmpty()) EmptyCard("Nenhuma notificação.")
-            items.forEach { item ->
-                CardLine(item.titulo, "${shortDate(item.criadaEm)} • ${item.mensagem}", item.tipo, AppColors.Green)
+fun NotificationsScreen(notifications: List<DriverNotification>, onBack: () -> Unit) {
+    UpPage(title = "Notificações", onBack = onBack) {
+        if (notifications.isEmpty()) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                EmptyState("Nenhum aviso no momento", "Corridas, repasses e comunicados da operação aparecem aqui quando forem enviados.", Icons.Rounded.Notifications)
+            }
+        } else {
+            CompactList {
+                items(notifications, key = { it.id }) { item ->
+                    NotificationRow(item.titulo, item.mensagem, item.tipo, unread = !item.lida)
+                }
             }
         }
     }

@@ -98,7 +98,7 @@ fun DocumentSnapshot.toRide(): Ride {
     return Ride(
         id = id,
         pedidoId = str("pedidoId", "orderId"),
-        numeroPedido = numero.ifBlank { id.takeLast(6).uppercase() },
+        numeroPedido = numero,
         entregadorUid = str("entregadorUid", "driverId"),
         status = str("status", "statusCorrida").ifBlank { "OFERTA_RECEBIDA" },
         lojaNome = str("lojaNome", "storeName"),
