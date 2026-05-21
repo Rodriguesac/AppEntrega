@@ -31,6 +31,7 @@ object DriverRepository {
     private val DRIVER_COLLECTIONS = listOf("entregadores", "drivers", "motoboys", "deliveryDrivers", "couriers")
     private val MISSION_COLLECTIONS = listOf("rotas_entrega", "pedidos", "rides")
     private val CAROUSEL_COLLECTIONS = listOf("app_carousel_banners", "carrosselApp", "bannersApp", "appBanners", "bannersEntregador", "carrossel_entregador", "entregadorBanners")
+    private val NOTICE_COLLECTIONS = listOf("app_notifications", "notificacoesEntregador", "avisosEntregador", "appAvisos", "operacaoAvisos")
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -137,7 +138,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "6.6.0",
+            "appVersion" to "6.7.0",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -180,7 +181,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "6.6.0"
+                "appVersion" to "6.7.0"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -220,7 +221,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "6.6.0"
+                "appVersion" to "6.7.0"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -259,7 +260,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "6.6.0",
+                "appVersion" to "6.7.0",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -361,7 +362,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "6.6.0"
+                "appVersion" to "6.7.0"
             ),
             SetOptions.merge()
         )
@@ -383,7 +384,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "6.6.0"
+            "appVersion" to "6.7.0"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -435,6 +436,37 @@ object DriverRepository {
             }
         }
         return CompositeListenerRegistration(registrations)
+    }
+
+    fun listenAppNotifications(
+        context: Context,
+        onNotices: (List<AppNotice>) -> Unit,
+        onError: (String) -> Unit = {}
+    ): ListenerRegistration? {
+        val profile = currentSession(context) ?: return null
+        val state = mutableMapOf<String, List<AppNotice>>()
+        fun emit() {
+            val now = System.currentTimeMillis()
+            val notices = state.values.flatten()
+                .distinctBy { "${it.collectionName}:${it.id}" }
+                .filter { it.isVisible(now) && it.matchesDriver(profile.id) }
+                .sortedWith(compareByDescending<AppNotice> { it.createdAtMillis }.thenBy { it.order })
+                .take(80)
+            onNotices(notices)
+        }
+        val regs = NOTICE_COLLECTIONS.map { collectionName ->
+            db.collection(collectionName).limit(120).addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir notificações do app.")
+                    return@addSnapshotListener
+                }
+                state[collectionName] = snap?.documents.orEmpty().mapNotNull { doc ->
+                    runCatching { doc.toAppNotice(collectionName) }.getOrNull()
+                }
+                emit()
+            }
+        }
+        return CompositeListenerRegistration(regs)
     }
 
     fun listenPendingRide(
@@ -1210,6 +1242,39 @@ data class DriverHistory(
     val reason: String = "",
     val paymentMethod: String = ""
 )
+
+data class AppNotice(
+    val id: String,
+    val collectionName: String = "local",
+    val title: String = "",
+    val message: String = "",
+    val category: String = "Operação",
+    val priority: String = "NORMAL",
+    val actionType: String = "none",
+    val actionTarget: String = "",
+    val targetDriverId: String = "",
+    val targetGroup: String = "all",
+    val read: Boolean = false,
+    val active: Boolean = true,
+    val order: Int = 999,
+    val createdAtMillis: Long = 0L,
+    val createdLabel: String = "Agora",
+    val startsAtMillis: Long? = null,
+    val endsAtMillis: Long? = null
+) {
+    fun isVisible(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (!active) return false
+        if (startsAtMillis != null && nowMillis < startsAtMillis) return false
+        if (endsAtMillis != null && nowMillis > endsAtMillis) return false
+        return true
+    }
+
+    fun matchesDriver(driverId: String): Boolean {
+        val target = targetDriverId.trim()
+        if (target.isBlank()) return true
+        return target == driverId
+    }
+}
 
 data class AppCarouselBanner(
     val id: String,

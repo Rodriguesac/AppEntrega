@@ -122,6 +122,7 @@ import com.rodriguesacai.entregador.PermissionStatusReader
 import com.rodriguesacai.entregador.PermissionStatus
 import com.rodriguesacai.entregador.RodriguesFonts
 import com.rodriguesacai.entregador.data.AppCarouselBanner
+import com.rodriguesacai.entregador.data.AppNotice
 import com.rodriguesacai.entregador.data.DriverHistory
 import com.rodriguesacai.entregador.data.DriverProfile
 import com.rodriguesacai.entregador.data.DriverRegistrationRequest
@@ -183,6 +184,7 @@ fun DriverHomeScreen(
     var history by remember { mutableStateOf<List<DriverHistory>>(emptyList()) }
     var stats by remember { mutableStateOf(DriverStats()) }
     var appBanners by remember { mutableStateOf<List<AppCarouselBanner>>(emptyList()) }
+    var appNotices by remember { mutableStateOf<List<AppNotice>>(emptyList()) }
     var error by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
     var hideValues by remember { mutableStateOf(AppSettings.getHideValues(context)) }
@@ -204,12 +206,16 @@ fun DriverHomeScreen(
         val carouselListener = if (profile != null) {
             DriverRepository.listenAppCarousel(onBanners = { appBanners = it }, onError = { /* carrossel vazio nao bloqueia operacao */ })
         } else null
+        val noticeListener = if (profile != null) {
+            DriverRepository.listenAppNotifications(context, onNotices = { appNotices = it }, onError = { /* avisos vazios nao bloqueiam operacao */ })
+        } else null
         onDispose {
             pendingListener?.remove()
             activeListener?.remove()
             historyListener?.remove()
             statsListener?.remove()
             carouselListener?.remove()
+            noticeListener?.remove()
         }
     }
 
@@ -375,6 +381,7 @@ fun DriverHomeScreen(
                     online = online,
                     hideValues = hideValues,
                     themeMode = themeMode,
+                    appNotices = appNotices,
                     onToggleValues = {
                         hideValues = !hideValues
                         AppSettings.setHideValues(context, hideValues)
@@ -1874,6 +1881,7 @@ private fun AccountContent(
     online: Boolean,
     hideValues: Boolean,
     themeMode: String,
+    appNotices: List<AppNotice>,
     onToggleValues: () -> Unit,
     onThemeChanged: (String) -> Unit,
     onProfileChanged: () -> Unit,
@@ -2012,6 +2020,7 @@ private fun AccountContent(
             )
 
             "notifications" -> NotificationsReferenceScreen(
+                notices = appNotices,
                 onBack = { page = "main" }
             )
 
@@ -2269,21 +2278,38 @@ private fun ChangeRequestReferenceScreen(
 }
 
 @Composable
-private fun NotificationsReferenceScreen(onBack: () -> Unit) {
+private fun NotificationsReferenceScreen(notices: List<AppNotice>, onBack: () -> Unit) {
     var filter by remember { mutableStateOf("Todas") }
-    val rows = listOf(
-        Triple("Nova corrida disponível", "Agora mesmo • toque para abrir", Lime),
-        Triple("Seu repasse foi programado", "Hoje • crédito previsto até 12:00", Lime),
-        Triple("Atualize seus dados bancários", "Ontem • necessário para próximo repasse", Warning),
-        Triple("Cadastro atualizado com sucesso", "Ontem • suas informações estão em dia", Blue),
-        Triple("Nenhuma nova mensagem do suporte", "2 dias atrás • tudo certo por aqui", Muted2)
-    )
+    val filtered = notices.filter { notice ->
+        filter == "Todas" || notice.category.equals(filter, ignoreCase = true)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        ScreenTopTitle("Notificações", "Avisos da operação e sistema", onBack)
+        ScreenTopTitle("Notificações", "Avisos enviados pela operação", onBack)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Todas", "Operação", "Sistema").forEach { item -> ModeButton(item, filter == item, Modifier.weight(1f)) { filter = item } }
         }
-        rows.forEach { NotificationCard(it.first, it.second, it.third) }
+        if (filtered.isEmpty()) {
+            GlassCard(padding = 24) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.size(68.dp).clip(CircleShape).background(Color(0xFFEAF8EE)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Notifications, contentDescription = null, tint = Lime, modifier = Modifier.size(34.dp))
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text("Nenhuma notificação", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Quando o gestor enviar avisos, repasses ou comunicados, eles aparecerão aqui.", color = Muted, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont, textAlign = TextAlign.Center)
+                }
+            }
+        } else {
+            filtered.forEach { notice ->
+                val color = when (notice.priority.uppercase(Locale.ROOT)) {
+                    "ALTA", "URGENTE", "HIGH" -> Warning
+                    "SISTEMA", "INFO" -> Blue
+                    else -> Lime
+                }
+                NotificationCard(notice.title, "${notice.createdLabel} • ${notice.message}", color)
+            }
+        }
         PrimaryButton("Marcar todas como lidas") { }
     }
 }
@@ -2375,7 +2401,7 @@ private fun SettingsReferenceScreen(themeMode: String, onThemeChanged: (String) 
                 ModeButton("Escuro", themeMode == AppSettings.THEME_DARK, Modifier.weight(1f)) { onThemeChanged(AppSettings.THEME_DARK) }
             }
         }
-        StatusInfoCard("Versão do app", "6.6.0 visual completo aplicado em todas as áreas principais.", Blue)
+        StatusInfoCard("Versão do app", "6.7.0 base fiel pronta para o gestor alimentar avisos, banners e estados.", Blue)
     }
 }
 
@@ -2533,7 +2559,7 @@ private fun SettingsCenterContent(
             SettingButton("Problemas com corrida", "Relatar ocorrência")
         }
         SettingsSection("Sobre") {
-            SettingButton("Versão do app", "6.6.0 todas as telas")
+            SettingButton("Versão do app", "6.7.0 todas as telas")
             SettingButton("Termos e privacidade", "Documentos do app")
         }
     }
