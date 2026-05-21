@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 72
-        versionName = "5.8.2-carrossel-painel"
+        versionCode = 73
+        versionName = "5.8.3-crashguard"
     }
 
     buildFeatures { compose = true }

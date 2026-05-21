@@ -137,7 +137,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.8.0-carrossel-home",
+            "appVersion" to "5.8.3-crashguard",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -180,7 +180,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.8.0-carrossel-home"
+                "appVersion" to "5.8.3-crashguard"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -220,7 +220,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.8.0-carrossel-home"
+                "appVersion" to "5.8.3-crashguard"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -259,7 +259,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.8.0-carrossel-home",
+                "appVersion" to "5.8.3-crashguard",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -361,7 +361,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.8.0-carrossel-home"
+                "appVersion" to "5.8.3-crashguard"
             ),
             SetOptions.merge()
         )
@@ -383,7 +383,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.8.0-carrossel-home"
+            "appVersion" to "5.8.3-crashguard"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -429,7 +429,7 @@ object DriverRepository {
                     return@addSnapshotListener
                 }
                 state[collectionName] = snap?.documents.orEmpty().mapNotNull { doc ->
-                    doc.toAppCarouselBanner(collectionName)
+                    runCatching { doc.toAppCarouselBanner(collectionName) }.getOrNull()
                 }
                 emit()
             }
@@ -480,7 +480,7 @@ object DriverRepository {
                             return@addSnapshotListener
                         }
                         val rides = snap?.documents.orEmpty()
-                            .mapNotNull { doc -> doc.toDriverRide(collectionName) }
+                            .mapNotNull { doc -> runCatching { doc.toDriverRide(collectionName) }.getOrNull() }
                             .filter { ride -> ride.status == "pending" && ride.canBeOfferedTo(profile.id) }
                             .distinctBy { it.id }
                         state[key] = rides
@@ -527,7 +527,7 @@ object DriverRepository {
                             return@addSnapshotListener
                         }
                         val rides = snap?.documents.orEmpty()
-                            .mapNotNull { doc -> doc.toDriverRide(collectionName) }
+                            .mapNotNull { doc -> runCatching { doc.toDriverRide(collectionName) }.getOrNull() }
                             .filter { ride -> ride.matchesDriver(profile.id) && ride.status in listOf("accepted", "pickup", "delivering") }
                             .distinctBy { it.id }
                         state[key] = rides
@@ -553,21 +553,23 @@ object DriverRepository {
                     return@addSnapshotListener
                 }
                 val mapped = snap?.documents.orEmpty()
-                    .filter { it.matchesDriverId(profile.id) }
-                    .map { doc ->
-                        val action = doc.anyString("statusAtual", "tipo", "status", "action", "titulo").ifBlank { "registro" }
-                        val rawRideId = doc.anyString("rotaId", "rideId", "pedidoId", "missaoId", "corridaId").ifBlank { doc.id }
-                        val displayCode = doc.anyString("codigoPedido", "numeroPedido", "orderCode", "pedidoCodigo")
-                            .ifBlank { rawRideId.takeLast(4).uppercase(Locale.ROOT) }
-                        val date = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()
-                        DriverHistory(
-                            id = doc.id,
-                            rideId = displayCode,
-                            action = action,
-                            value = formatCurrency(valueNumberFromDoc(doc)),
-                            createdAtMillis = date?.time ?: 0L,
-                            createdLabel = date?.formatHistoryLabel().orEmpty().ifBlank { "Agora" }
-                        )
+                    .filter { doc -> runCatching { doc.matchesDriverId(profile.id) }.getOrDefault(false) }
+                    .mapNotNull { doc ->
+                        runCatching {
+                            val action = doc.anyString("statusAtual", "tipo", "status", "action", "titulo").ifBlank { "registro" }
+                            val rawRideId = doc.anyString("rotaId", "rideId", "pedidoId", "missaoId", "corridaId").ifBlank { doc.id }
+                            val displayCode = doc.anyString("codigoPedido", "numeroPedido", "orderCode", "pedidoCodigo")
+                                .ifBlank { rawRideId.takeLast(4).uppercase(Locale.ROOT) }
+                            val date = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()
+                            DriverHistory(
+                                id = doc.id,
+                                rideId = displayCode,
+                                action = action,
+                                value = formatCurrency(valueNumberFromDoc(doc)),
+                                createdAtMillis = date?.time ?: 0L,
+                                createdLabel = date?.formatHistoryLabel().orEmpty().ifBlank { "Agora" }
+                            )
+                        }.getOrNull()
                     }
 
                 val list = mapped
@@ -593,9 +595,9 @@ object DriverRepository {
                     return@addSnapshotListener
                 }
                 val finished = snap?.documents.orEmpty()
-                    .filter { it.matchesDriverId(profile.id) }
-                    .filter { doc -> doc.anyString("tipo", "status", "action").upperOrTrim() in FINAL_HISTORY_STATUSES }
-                val total = finished.sumOf { doc -> valueNumberFromDoc(doc) }
+                    .filter { doc -> runCatching { doc.matchesDriverId(profile.id) }.getOrDefault(false) }
+                    .filter { doc -> runCatching { doc.anyString("tipo", "status", "action").upperOrTrim() in FINAL_HISTORY_STATUSES }.getOrDefault(false) }
+                val total = finished.sumOf { doc -> runCatching { valueNumberFromDoc(doc) }.getOrDefault(0.0) }
                 onStats(DriverStats(totalToday = total, totalWeek = total, totalMonth = total, finishedCount = finished.size, score = 100))
             }
     }
@@ -950,7 +952,7 @@ object DriverRepository {
                 "updatedAt" to now,
                 "criadoEm" to now,
                 "createdAt" to now,
-                "origem" to "android_native_v5_8_carrossel_alpha",
+                "origem" to "android_native_v5_8_3_crashguard",
                 "eventosStatus" to FieldValue.arrayUnion(
                     mapOf(
                         "status" to action,
@@ -1572,8 +1574,8 @@ private fun DocumentSnapshot.matchesDriverId(driverId: String): Boolean {
 
 
 private fun DocumentSnapshot.getDeep(path: String): Any? {
-    if (!path.contains('.')) return get(path)
-    var current: Any? = data
+    if (!path.contains('.')) return runCatching { get(path) }.getOrNull()
+    var current: Any? = runCatching { data }.getOrNull()
     for (part in path.split('.')) {
         current = when (current) {
             is Map<*, *> -> current[part]
@@ -1659,8 +1661,14 @@ private fun DocumentSnapshot.anyBoolean(vararg keys: String): Boolean? {
 
 private fun DocumentSnapshot.anyTimestamp(vararg keys: String): Timestamp? {
     for (key in keys) {
-        val value = getTimestamp(key)
-        if (value != null) return value
+        val value = getDeep(key)
+        when (value) {
+            is Timestamp -> return value
+            is Date -> return Timestamp(value)
+            is Number -> return Timestamp(Date(value.toLong()))
+            is String -> value.toFlexibleMillisOrNull()?.let { return Timestamp(Date(it)) }
+        }
+        runCatching { getTimestamp(key) }.getOrNull()?.let { return it }
     }
     return null
 }
@@ -1668,10 +1676,11 @@ private fun DocumentSnapshot.anyTimestamp(vararg keys: String): Timestamp? {
 private fun DocumentSnapshot.anyStringList(vararg keys: String): List<String> {
     val result = linkedSetOf<String>()
     for (key in keys) {
-        val value = get(key)
+        val value = getDeep(key)
         when (value) {
             is List<*> -> value.mapNotNullTo(result) { it?.toString() }
             is String -> if (value.isNotBlank()) result.add(value)
+            is Map<*, *> -> value.values.mapNotNullTo(result) { it?.toString() }
         }
     }
     return result.toList()
