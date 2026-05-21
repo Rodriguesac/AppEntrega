@@ -114,19 +114,19 @@ import kotlinx.coroutines.delay
 private enum class AppTab { Inicio, Corridas, Ganhos, Historico, Conta }
 
 private val AppFont = RodriguesFonts.Montserrat
-private val BgTop = Color(0xFF0B0A10)
-private val BgBottom = Color(0xFF050507)
-private val Panel = Color(0xFF111116)
-private val PanelSoft = Color(0xFF15151C).copy(alpha = 0.96f)
-private val Purple = Color(0xFF6D36D9)
-private val Purple2 = Color(0xFF9B6DFF)
-private val Lime = Color(0xFF82C91E)
-private val LimeDark = Color(0xFF0E3E24)
-private val Ink = Color.White
-private val Muted = Color(0xFFC9C6D3)
-private val Muted2 = Color(0xFF8C8797)
+private val BgTop = Color(0xFFF7FAF4)
+private val BgBottom = Color(0xFFF1F5EE)
+private val Panel = Color.White
+private val PanelSoft = Color.White
+private val Purple = Color(0xFF008A2E)
+private val Purple2 = Color(0xFFFF7A00)
+private val Lime = Color(0xFF118C35)
+private val LimeDark = Color(0xFF006B2A)
+private val Ink = Color(0xFF111318)
+private val Muted = Color(0xFF4F5864)
+private val Muted2 = Color(0xFF8A929D)
 private val Danger = Color(0xFFFF4D6D)
-private val Warning = Color(0xFFFFB020)
+private val Warning = Color(0xFFE99A00)
 private val Blue = Color(0xFF1677FF)
 
 private enum class AvailabilityKind { Disponivel, Indisponivel, Restricao, EmEntrega }
@@ -259,9 +259,9 @@ fun DriverHomeScreen(
     }
 
     val isLightTheme = themeMode == AppSettings.THEME_LIGHT
-    val screenBg = if (isLightTheme) Color(0xFFF6F8F3) else BgBottom
-    val topBg = if (isLightTheme) Color(0xFFEFF5E8) else BgTop
-    val navBg = if (isLightTheme) Color.White else Color(0xFF100B16)
+    val screenBg = BgBottom
+    val topBg = BgTop
+    val navBg = Color.White
 
     Scaffold(
         containerColor = screenBg,
@@ -607,7 +607,7 @@ private fun RowScope.navItem(item: AppTab, selected: AppTab, label: String, icon
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Ink,
             selectedTextColor = Ink,
-            indicatorColor = Purple,
+            indicatorColor = Lime.copy(alpha = .16f),
             unselectedIconColor = Muted2,
             unselectedTextColor = Muted2
         )
@@ -675,6 +675,7 @@ private fun HomeContent(
         if (activeRide == null && pendingRide == null) {
             val visibleBanners = if (appBanners.isNotEmpty()) appBanners else defaultHomeBanners(operational)
             AppHomeCarousel(visibleBanners, onInternalAction = onCarouselInternal)
+            QuickActionsGrid(onInternalAction = onCarouselInternal)
         }
         when {
             activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
@@ -802,7 +803,7 @@ private fun AppHomeCarousel(banners: List<AppCarouselBanner>, onInternalAction: 
                         .height(7.dp)
                         .width(if (selected) 24.dp else 7.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(if (selected) Lime else Color.White.copy(alpha = .22f))
+                        .background(if (selected) Lime else Color(0xFFD5DADF))
                 )
             }
         }
@@ -812,92 +813,182 @@ private fun AppHomeCarousel(banners: List<AppCarouselBanner>, onInternalAction: 
 @Composable
 private fun AppHomeBannerCard(banner: AppCarouselBanner, onAction: () -> Unit) {
     val hasImage = banner.imageUrl.isNotBlank()
-    val showButton = banner.buttonText.isNotBlank() && banner.actionType.lowercase(Locale.ROOT) != "none"
+    val normalizedMode = banner.displayMode.normalizedBannerMode()
+    val placeholderText = banner.title.isPlaceholderBannerText() && banner.description.isPlaceholderBannerText()
+    val imageOnly = normalizedMode == "image_only" || (hasImage && ((banner.title.isBlank() && banner.description.isBlank()) || placeholderText))
+    val showBadge = !imageOnly && (banner.showBadge ?: banner.badge.isNotBlank())
+    val showTitle = !imageOnly && (banner.showTitle ?: banner.title.isNotBlank())
+    val showDescription = !imageOnly && (banner.showDescription ?: banner.description.isNotBlank())
+    val showButton = !imageOnly && (banner.showButton ?: true) && banner.buttonText.isNotBlank() && banner.actionType.lowercase(Locale.ROOT) != "none"
+    val clickable = banner.actionType.lowercase(Locale.ROOT) != "none" && banner.actionTarget.isNotBlank()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(26.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFF142014),
-                        Color(0xFF0E3E24),
-                        Color(0xFF111116)
+                        Color(0xFF012F13),
+                        Color(0xFF078334),
+                        Color(0xFF0B461E)
                     )
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(28.dp))
+            .border(1.dp, Color(0xFFE4E8EF), RoundedCornerShape(26.dp))
+            .then(if (clickable) Modifier.clickable { onAction() } else Modifier)
     ) {
         if (hasImage) {
             AsyncImage(
                 model = banner.imageUrl,
-                contentDescription = null,
+                contentDescription = banner.title.ifBlank { "Banner do app" },
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .matchParentSize()
-                    .alpha(.34f)
+                modifier = Modifier.matchParentSize()
             )
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(Brush.horizontalGradient(listOf(Color(0xEE090B0F), Color(0x99111316), Color.Transparent)))
-            )
+            if (!imageOnly) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(Brush.horizontalGradient(listOf(Color(0xD9000000), Color(0x88000000), Color.Transparent)))
+                )
+            }
         } else {
             Canvas(Modifier.matchParentSize()) {
-                drawCircle(color = Lime.copy(alpha = .16f), radius = size.minDimension * .45f, center = Offset(size.width * .92f, size.height * .05f))
-                drawCircle(color = Purple.copy(alpha = .18f), radius = size.minDimension * .36f, center = Offset(size.width * .76f, size.height * .98f))
+                drawCircle(color = Color.White.copy(alpha = .14f), radius = size.minDimension * .52f, center = Offset(size.width * .92f, size.height * .10f))
+                drawCircle(color = Lime.copy(alpha = .22f), radius = size.minDimension * .32f, center = Offset(size.width * .72f, size.height * .92f))
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(
-                    banner.badge.ifBlank { "AVISO" }.uppercase(Locale.ROOT),
-                    color = Lime,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.2.sp,
-                    fontFamily = AppFont,
-                    maxLines = 1
-                )
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    banner.title.ifBlank { "Comunicado do painel" },
-                    color = Ink,
-                    fontSize = 24.sp,
-                    lineHeight = 25.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = AppFont,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    banner.description.ifBlank { "Mensagem enviada pelo gestor para a tela inicial do entregador." },
-                    color = Color.White.copy(alpha = .78f),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = AppFont,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (showButton) {
-                Button(
-                    onClick = onAction,
-                    modifier = Modifier.height(38.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = LimeDark)
-                ) {
-                    Text(banner.buttonText, fontSize = 11.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        if (!imageOnly) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    if (showBadge) {
+                        Text(
+                            banner.badge.ifBlank { "AVISO" }.uppercase(Locale.ROOT),
+                            color = if (hasImage) Color(0xFFB8FF7D) else Color.White.copy(alpha = .86f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.2.sp,
+                            fontFamily = AppFont,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(7.dp))
+                    }
+                    if (showTitle) {
+                        Text(
+                            banner.title,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            lineHeight = 25.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = AppFont,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    if (showDescription) {
+                        Text(
+                            banner.description,
+                            color = Color.White.copy(alpha = .84f),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = AppFont,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
+                if (showButton) {
+                    Button(
+                        onClick = onAction,
+                        modifier = Modifier.height(38.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = LimeDark)
+                    ) {
+                        Text(banner.buttonText, fontSize = 11.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun String.normalizedBannerMode(): String {
+    val value = trim().lowercase(Locale.ROOT)
+        .replace("-", "_")
+        .replace(" ", "_")
+        .replace("ó", "o")
+        .replace("ã", "a")
+        .replace("ç", "c")
+    return when (value) {
+        "image_only", "imagem", "imagem_only", "so_imagem", "somente_imagem", "banner_pronto", "full_image", "arte_pronta" -> "image_only"
+        "text_only", "texto", "so_texto", "somente_texto" -> "text_only"
+        else -> value.ifBlank { "auto" }
+    }
+}
+
+private fun String.isPlaceholderBannerText(): Boolean {
+    val value = trim().lowercase(Locale.ROOT)
+        .replace("í", "i")
+        .replace("ã", "a")
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("ç", "c")
+    if (value.isBlank()) return true
+    return value.contains("banner sem") ||
+        value.contains("sem titulo") ||
+        value.contains("comunicado do painel") ||
+        value.contains("mensagem enviada pelo gestor") ||
+        value == "saiba mais"
+}
+
+@Composable
+private fun QuickActionsGrid(onInternalAction: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            QuickActionTile("Histórico", "Ver corridas", Icons.Filled.History, Modifier.weight(1f)) { onInternalAction("historico") }
+            QuickActionTile("Ganhos", "Resumo financeiro", Icons.Filled.AccountBalanceWallet, Modifier.weight(1f)) { onInternalAction("ganhos") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            QuickActionTile("Mapa", "Ver região", Icons.Filled.Map, Modifier.weight(1f)) { onInternalAction("mapa") }
+            QuickActionTile("Conta", "Pix e ajustes", Icons.Filled.Person, Modifier.weight(1f)) { onInternalAction("conta") }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionTile(title: String, subtitle: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(22.dp),
+        modifier = modifier
+            .border(1.dp, Color(0xFFE5EAF0), RoundedCornerShape(22.dp))
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFEAF7EE)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1)
+                Text(subtitle, color = Muted2, fontSize = 11.sp, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -1628,7 +1719,7 @@ private fun MoreContent(
 
         GlassCard(padding = 18) {
             Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 5.4.0 • Torre V9.4", color = Muted2, fontSize = 12.sp)
+            Text("Versão 6.0.0 • UI operacional", color = Muted2, fontSize = 12.sp)
         }
     }
 }
@@ -1652,7 +1743,7 @@ private fun PermissionRow(label: String, ok: Boolean, onFix: () -> Unit) {
 }
 
 @Composable
-private fun GlassCard(padding: Int = 16, borderColor: Color = Color.White.copy(alpha = 0.10f), content: @Composable ColumnScope.() -> Unit) {
+private fun GlassCard(padding: Int = 16, borderColor: Color = Color(0xFFE4E8EF), content: @Composable ColumnScope.() -> Unit) {
     Card(
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = PanelSoft),
@@ -1702,7 +1793,7 @@ private fun PrimaryButton(text: String, enabled: Boolean = true, loading: Boolea
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(56.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Purple, contentColor = Color.White)
+        colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Color.White)
     ) {
         if (loading) CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = Lime)
         else Text(text, fontWeight = FontWeight.Black, fontFamily = AppFont)
@@ -1716,7 +1807,7 @@ private fun ModeButton(text: String, selected: Boolean, modifier: Modifier = Mod
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(999.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) Purple else Color.White.copy(alpha = .08f),
+            containerColor = if (selected) Lime else Color(0xFFF2F5EE),
             contentColor = if (selected) Color.White else Muted
         )
     ) { Text(text, fontWeight = FontWeight.Black, fontSize = 13.sp, fontFamily = AppFont) }
@@ -1728,7 +1819,7 @@ private fun TinyChip(text: String, selected: Boolean, modifier: Modifier = Modif
         onClick = onClick,
         modifier = modifier.height(38.dp),
         shape = RoundedCornerShape(999.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Purple else Color.White.copy(alpha = .07f), contentColor = if (selected) Color.White else Muted)
+        colors = ButtonDefaults.buttonColors(containerColor = if (selected) Lime else Color(0xFFF2F5EE), contentColor = if (selected) Color.White else Muted)
     ) { Text(text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
@@ -1776,10 +1867,14 @@ private fun StatusPill(text: String, positive: Boolean, modifier: Modifier = Mod
 
 @Composable
 private fun MiniStat(label: String, value: String, modifier: Modifier) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.08f)), shape = RoundedCornerShape(20.dp), modifier = modifier.border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp))) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(20.dp),
+        modifier = modifier.border(1.dp, Color(0xFFE5EAF0), RoundedCornerShape(20.dp))
+    ) {
         Column(Modifier.padding(12.dp)) {
-            Text(label, color = Muted2, fontSize = 12.sp)
-            Text(value, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, color = Muted2, fontSize = 12.sp, fontFamily = AppFont)
+            Text(value, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
         }
     }
 }

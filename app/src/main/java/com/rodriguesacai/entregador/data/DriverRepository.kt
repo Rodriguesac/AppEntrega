@@ -137,7 +137,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "5.8.3-crashguard",
+            "appVersion" to "6.0.0",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -180,7 +180,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.8.3-crashguard"
+                "appVersion" to "6.0.0"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -220,7 +220,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "5.8.3-crashguard"
+                "appVersion" to "6.0.0"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -259,7 +259,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "5.8.3-crashguard",
+                "appVersion" to "6.0.0",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -361,7 +361,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "5.8.3-crashguard"
+                "appVersion" to "6.0.0"
             ),
             SetOptions.merge()
         )
@@ -383,7 +383,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "5.8.3-crashguard"
+            "appVersion" to "6.0.0"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -865,7 +865,7 @@ object DriverRepository {
                 "intervaloSeg" to intervaloSeg,
                 "atualizadoEm" to now
             ),
-            "localizacaoOrigem" to "android_native_v5_8_carrossel"
+            "localizacaoOrigem" to "android_native_v6_0_0"
         )
 
         db.collection(profile.collectionName).document(profile.id)
@@ -952,7 +952,7 @@ object DriverRepository {
                 "updatedAt" to now,
                 "criadoEm" to now,
                 "createdAt" to now,
-                "origem" to "android_native_v5_8_3_crashguard",
+                "origem" to "android_native_v6_0_0",
                 "eventosStatus" to FieldValue.arrayUnion(
                     mapOf(
                         "status" to action,
@@ -967,7 +967,9 @@ object DriverRepository {
     }
 
     private fun DocumentSnapshot.toAppCarouselBanner(collectionName: String): AppCarouselBanner? {
-        val title = anyString("title", "titulo", "nome", "headline").ifBlank { return null }
+        val title = anyString("title", "titulo", "nome", "headline")
+        val imageUrl = anyString("imageUrl", "imagemUrl", "urlImagem", "image", "imagem", "bannerUrl", "fotoUrl")
+        if (title.isBlank() && imageUrl.isBlank()) return null
         val status = anyString("status", "situacao", "situação").upperOrTrim()
         val activeByStatus = status.isBlank() || status in setOf("ATIVO", "ACTIVE", "APROVADO", "PUBLICADO", "ONLINE")
         val active = anyBoolean("active", "ativo", "enabled", "visivel", "visível", "publicado") ?: activeByStatus
@@ -979,14 +981,19 @@ object DriverRepository {
             id = id,
             collectionName = collectionName,
             title = title,
-            badge = anyString("badge", "selo", "tag", "categoria").ifBlank { "AVISO" },
+            badge = anyString("badge", "selo", "tag", "categoria"),
             description = anyString("description", "descricao", "descrição", "subtitle", "subtitulo", "texto", "mensagem"),
-            buttonText = anyString("buttonText", "ctaText", "textoBotao", "textoBotão", "cta", "callToAction").ifBlank { "Saiba mais" },
-            imageUrl = anyString("imageUrl", "imagemUrl", "urlImagem", "image", "imagem", "bannerUrl", "fotoUrl"),
+            buttonText = anyString("buttonText", "ctaText", "textoBotao", "textoBotão", "cta", "callToAction"),
+            imageUrl = imageUrl,
             active = active,
             order = anyDouble("order", "ordem", "position", "posicao", "posição")?.toInt() ?: 999,
             actionType = anyString("actionType", "tipoAcao", "tipoAção", "acao", "ação").ifBlank { "none" },
             actionTarget = anyString("actionTarget", "destino", "target", "url", "link"),
+            displayMode = anyString("displayMode", "modoExibicao", "modoExibição", "modo", "layout", "bannerMode"),
+            showBadge = anyBoolean("showBadge", "mostrarSelo", "exibirSelo"),
+            showTitle = anyBoolean("showTitle", "mostrarTitulo", "mostrarTítulo", "exibirTitulo", "exibirTítulo"),
+            showDescription = anyBoolean("showDescription", "mostrarDescricao", "mostrarDescrição", "exibirDescricao", "exibirDescrição"),
+            showButton = anyBoolean("showButton", "mostrarBotao", "mostrarBotão", "exibirBotao", "exibirBotão"),
             startsAtMillis = startsAtMillis,
             endsAtMillis = endsAtMillis
         )
@@ -1192,15 +1199,20 @@ data class DriverHistory(
 data class AppCarouselBanner(
     val id: String,
     val collectionName: String = "local",
-    val title: String,
-    val badge: String = "AVISO",
+    val title: String = "",
+    val badge: String = "",
     val description: String = "",
-    val buttonText: String = "Saiba mais",
+    val buttonText: String = "",
     val imageUrl: String = "",
     val active: Boolean = true,
     val order: Int = 999,
     val actionType: String = "none",
     val actionTarget: String = "",
+    val displayMode: String = "auto",
+    val showBadge: Boolean? = null,
+    val showTitle: Boolean? = null,
+    val showDescription: Boolean? = null,
+    val showButton: Boolean? = null,
     val startsAtMillis: Long? = null,
     val endsAtMillis: Long? = null
 ) {
