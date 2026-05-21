@@ -9,12 +9,15 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,19 +78,19 @@ private fun style(size: Int, weight: FontWeight, line: Int = (size * 1.25f).toIn
 )
 
 val UpTypography = Typography(
-    displayLarge = style(36, FontWeight.Black, 40),
-    displayMedium = style(30, FontWeight.Black, 34),
-    displaySmall = style(26, FontWeight.Black, 30),
-    headlineLarge = style(24, FontWeight.Black, 30),
-    headlineMedium = style(22, FontWeight.ExtraBold, 28),
-    headlineSmall = style(20, FontWeight.ExtraBold, 25),
-    titleLarge = style(18, FontWeight.ExtraBold, 24),
-    titleMedium = style(16, FontWeight.Bold, 21),
+    displayLarge = style(32, FontWeight.Black, 38),
+    displayMedium = style(28, FontWeight.Black, 34),
+    displaySmall = style(24, FontWeight.Black, 30),
+    headlineLarge = style(22, FontWeight.Black, 28),
+    headlineMedium = style(20, FontWeight.ExtraBold, 26),
+    headlineSmall = style(18, FontWeight.ExtraBold, 24),
+    titleLarge = style(17, FontWeight.ExtraBold, 22),
+    titleMedium = style(15, FontWeight.Bold, 20),
     titleSmall = style(14, FontWeight.Bold, 18),
-    bodyLarge = style(16, FontWeight.Normal, 23),
-    bodyMedium = style(14, FontWeight.Normal, 20),
+    bodyLarge = style(15, FontWeight.Normal, 22),
+    bodyMedium = style(13, FontWeight.Normal, 18),
     bodySmall = style(12, FontWeight.Normal, 17),
-    labelLarge = style(15, FontWeight.Bold, 19),
+    labelLarge = style(14, FontWeight.Bold, 18),
     labelMedium = style(13, FontWeight.Bold, 17),
     labelSmall = style(11, FontWeight.SemiBold, 14)
 )
@@ -106,12 +109,17 @@ val UpScheme = lightColorScheme(
 
 @Composable
 fun UpTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = UpScheme,
-        typography = UpTypography,
-        shapes = UpShapes,
-        content = content
-    )
+    val density = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, fontScale = 1f)
+    ) {
+        MaterialTheme(
+            colorScheme = UpScheme,
+            typography = UpTypography,
+            shapes = UpShapes,
+            content = content
+        )
+    }
 }
 
 object UpElevations {

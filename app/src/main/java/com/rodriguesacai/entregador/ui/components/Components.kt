@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -72,6 +74,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -99,6 +102,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -109,6 +114,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.rodriguesacai.entregador.R
 import com.rodriguesacai.entregador.data.Driver
 import com.rodriguesacai.entregador.data.Ride
 import com.rodriguesacai.entregador.ui.deliveryAddressVisible
@@ -129,13 +135,12 @@ import com.rodriguesacai.entregador.ui.design.UpElevations
 
 @Composable
 fun UpLogo(modifier: Modifier = Modifier, compact: Boolean = false) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        Text("Up", color = UpColors.Green, fontSize = if (compact) 30.sp else 42.sp, fontWeight = FontWeight.Black, letterSpacing = (-2).sp)
-        Spacer(Modifier.width(7.dp))
-        Column {
-            Text("entregas", color = UpColors.Ink, fontSize = if (compact) 17.sp else 24.sp, fontWeight = FontWeight.Black)
-        }
-    }
+    Image(
+        painter = painterResource(id = R.drawable.up_logo_reference),
+        contentDescription = "Up entregas",
+        modifier = modifier.height(if (compact) 42.dp else 58.dp).fillMaxWidth(),
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable
@@ -144,18 +149,18 @@ fun AuthCard(content: @Composable Column.() -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(UpColors.Screen)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .padding(horizontal = 18.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+            modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(UpColors.Surface),
             shape = RoundedCornerShape(24.dp),
             border = UpBorders.normal,
             elevation = UpElevations.card
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 content = content
@@ -261,10 +266,12 @@ fun FormField(
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = if (icon != null) ({ Icon(icon, contentDescription = null, tint = UpColors.Muted, modifier = Modifier.size(18.dp)) }) else null,
             trailingIcon = trailingIcon ?: if (password) ({ IconButton(onClick = { visible = !visible }) { Icon(if (visible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = "Mostrar senha", tint = UpColors.Muted) } }) else null,
+            placeholder = { Text(label, color = UpColors.Subtle, fontSize = 13.sp, fontFamily = FontFamily.SansSerif, maxLines = 1) },
             singleLine = minLines == 1,
             minLines = minLines,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             visualTransformation = if (password && !visible) PasswordVisualTransformation() else VisualTransformation.None,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 18.sp, fontFamily = FontFamily.SansSerif),
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = UpColors.Surface,
@@ -704,49 +711,32 @@ fun PhoneBoxIllustration(modifier: Modifier = Modifier) {
 
 @Composable
 fun LoginMotoIllustration(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val w = size.width; val h = size.height
-        drawCircle(Color(0xFFE7F6EA), radius = w*.35f, center = Offset(w*.62f, h*.52f))
-        drawRoundRect(Color(0xFFDCEFE2), topLeft = Offset(0f, h*.75f), size = Size(w, h*.12f), cornerRadius = CornerRadius(35f,35f))
-        drawCircle(UpColors.Ink, w*.075f, Offset(w*.35f, h*.77f))
-        drawCircle(UpColors.Ink, w*.075f, Offset(w*.68f, h*.77f))
-        drawRoundRect(UpColors.Green, topLeft = Offset(w*.34f, h*.55f), size = Size(w*.38f, h*.15f), cornerRadius = CornerRadius(13f,13f))
-        drawRoundRect(UpColors.GreenDark, topLeft = Offset(w*.44f, h*.42f), size = Size(w*.18f, h*.16f), cornerRadius = CornerRadius(10f,10f))
-        drawCircle(Color(0xFFFFCBA4), w*.055f, Offset(w*.53f, h*.34f))
-        drawRoundRect(UpColors.GreenDark, topLeft = Offset(w*.49f, h*.39f), size = Size(w*.10f, h*.12f), cornerRadius = CornerRadius(10f,10f))
-        drawLine(UpColors.Ink, Offset(w*.62f, h*.59f), Offset(w*.80f, h*.54f), strokeWidth = 6f, cap = StrokeCap.Round)
-        drawLine(UpColors.Ink, Offset(w*.39f, h*.64f), Offset(w*.26f, h*.55f), strokeWidth = 6f, cap = StrokeCap.Round)
-    }
+    Image(
+        painter = painterResource(id = R.drawable.up_login_moto),
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable
 fun AnalysisIllustration(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val w = size.width; val h = size.height
-        drawCircle(UpColors.GreenSoft, w*.34f, Offset(w*.50f, h*.52f))
-        drawCircle(Color(0xFFFFCBA4), w*.10f, Offset(w*.42f, h*.30f))
-        drawRoundRect(UpColors.GreenDark, topLeft = Offset(w*.30f, h*.42f), size = Size(w*.28f, h*.30f), cornerRadius = CornerRadius(18f,18f))
-        drawRoundRect(UpColors.Ink, topLeft = Offset(w*.34f, h*.18f), size = Size(w*.20f, h*.10f), cornerRadius = CornerRadius(20f,20f))
-        drawRoundRect(Color.White, topLeft = Offset(w*.55f, h*.43f), size = Size(w*.14f, h*.20f), cornerRadius = CornerRadius(12f,12f))
-        drawRoundRect(UpColors.Green, topLeft = Offset(w*.62f, h*.28f), size = Size(w*.20f, h*.11f), cornerRadius = CornerRadius(16f,16f))
-        drawCircle(UpColors.Green, w*.12f, Offset(w*.78f, h*.23f), style = Stroke(5f))
-        drawLine(UpColors.Green, Offset(w*.78f, h*.15f), Offset(w*.78f, h*.23f), strokeWidth = 4f, cap = StrokeCap.Round)
-        drawLine(UpColors.Green, Offset(w*.78f, h*.23f), Offset(w*.85f, h*.23f), strokeWidth = 4f, cap = StrokeCap.Round)
-    }
+    Image(
+        painter = painterResource(id = R.drawable.up_analysis_driver),
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable
 fun LockIllustration(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val w = size.width; val h = size.height
-        drawCircle(UpColors.GreenSoft, w*.33f, Offset(w*.50f, h*.50f))
-        drawRoundRect(UpColors.Green, topLeft = Offset(w*.26f, h*.43f), size = Size(w*.48f, h*.28f), cornerRadius = CornerRadius(16f,16f))
-        drawArc(UpColors.GreenDark, startAngle = 180f, sweepAngle = 180f, useCenter = false, topLeft = Offset(w*.33f, h*.20f), size = Size(w*.34f, h*.34f), style = Stroke(width = 14f, cap = StrokeCap.Round))
-        repeat(3) { i -> drawCircle(Color.White.copy(alpha = .8f), w*.035f, Offset(w*(.40f + i*.10f), h*.57f)) }
-        drawCircle(UpColors.Green, w*.10f, Offset(w*.79f, h*.28f))
-        drawLine(Color.White, Offset(w*.75f, h*.28f), Offset(w*.79f, h*.32f), strokeWidth = 5f, cap = StrokeCap.Round)
-        drawLine(Color.White, Offset(w*.79f, h*.32f), Offset(w*.85f, h*.23f), strokeWidth = 5f, cap = StrokeCap.Round)
-    }
+    Image(
+        painter = painterResource(id = R.drawable.up_lock_shield),
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable

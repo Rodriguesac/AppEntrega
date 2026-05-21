@@ -2,7 +2,7 @@
 setlocal
 chcp 65001 >nul
 echo.
-echo Aplicando Rodrigues Entregador Nativo V7 Fiel Caprichado...
+echo Aplicando Rodrigues Entregador Nativo V8 Fiel UI Real...
 echo Este BAT copia arquivos para a pasta atual e NAO faz commit nem push.
 echo.
 if not exist app (
