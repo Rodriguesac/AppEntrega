@@ -1,0 +1,66 @@
+name: Build APK Nativo Entregador
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-entregador-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Gerar APK Debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Aceitar licencas e instalar SDK
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Configurar Gradle 8.14
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
+
+      - name: Mostrar estrutura principal
+        shell: bash
+        run: |
+          pwd
+          ls -la
+          ls -la app
+          grep -n "versionCode\|versionName" app/build.gradle.kts
+
+      - name: Gerar APK
+        shell: bash
+        run: gradle --no-daemon clean :app:assembleDebug --rerun-tasks --stacktrace
+
+      - name: Listar APK gerado
+        shell: bash
+        run: find app/build/outputs/apk -type f -name "*.apk" -print -exec ls -lh {} \;
+
+      - name: Publicar APK Debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rodrigues-Entregador-V5-8-4-action-fix-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

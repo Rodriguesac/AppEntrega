@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 73
-        versionName = "5.8.3-crashguard"
+        versionCode = 74
+        versionName = "5.8.4-action-fix"
     }
 
     buildFeatures { compose = true }
