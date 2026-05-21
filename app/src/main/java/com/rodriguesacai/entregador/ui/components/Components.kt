@@ -53,6 +53,12 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.LocalShipping
+import androidx.compose.material.icons.rounded.TwoWheeler
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Route
@@ -215,7 +221,7 @@ fun UpBottomBar(current: AppRoute, onNav: (AppRoute) -> Unit) {
     NavigationBar(containerColor = UpColors.Surface, tonalElevation = 8.dp, modifier = Modifier.height(72.dp)) {
         val items = listOf(
             NavItem(AppRoute.Home, "Início", Icons.Rounded.Home),
-            NavItem(AppRoute.CorridaAndamento, "Corridas", Icons.Rounded.DeliveryDining),
+            NavItem(AppRoute.CorridaAndamento, "Corridas", Icons.Rounded.TwoWheeler),
             NavItem(AppRoute.Carteira, "Carteira", Icons.Rounded.AccountBalanceWallet),
             NavItem(AppRoute.Notificacoes, "Avisos", Icons.Rounded.Notifications),
             NavItem(AppRoute.Perfil, "Mais", Icons.Rounded.MoreHoriz)
@@ -382,11 +388,11 @@ fun DriverHeader(driver: Driver?, onNotifications: () -> Unit, onMenu: () -> Uni
 
 @Composable
 fun DriverPhoto(driver: Driver?, size: Dp = 60.dp) {
-    Box(Modifier.size(size).clip(CircleShape).background(UpColors.GreenSoft), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size).clip(CircleShape).background(UpColors.GreenSoft).border(1.dp, UpColors.Green.copy(alpha = .18f), CircleShape), contentAlignment = Alignment.Center) {
         if (!driver?.fotoUrl.isNullOrBlank()) {
             AsyncImage(model = driver?.fotoUrl, contentDescription = "Foto", contentScale = ContentScale.Crop, modifier = Modifier.size(size).clip(CircleShape))
         } else {
-            Text(driver?.nome?.take(1)?.uppercase().takeIf { !it.isNullOrBlank() } ?: "UP", color = UpColors.Green, fontWeight = FontWeight.Black, fontSize = if (size > 50.dp) 18.sp else 13.sp)
+            Icon(Icons.Rounded.Person, contentDescription = null, tint = UpColors.Green, modifier = Modifier.size(if (size > 50.dp) 28.dp else 22.dp))
         }
     }
 }
@@ -431,17 +437,23 @@ fun AvailabilityPill(driver: Driver?, onToggle: (Boolean) -> Unit) {
 @Composable
 fun FinancialMini(driver: Driver?, onToggle: (Boolean) -> Unit, onWallet: () -> Unit) {
     val hidden = driver?.ocultarValores == true
-    UpCard {
+    UpCard(modifier = Modifier.clickable(onClick = onWallet)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Ganhos de hoje", color = UpColors.Muted, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                Text(moneyOrEmpty(driver?.saldoHoje, hidden), color = UpColors.Ink, fontWeight = FontWeight.Black, fontSize = 28.sp)
+            Box(Modifier.size(46.dp).clip(CircleShape).background(UpColors.GreenSoft), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Payments, contentDescription = null, tint = UpColors.Green, modifier = Modifier.size(24.dp))
             }
-            Divider(Modifier.height(48.dp).width(1.dp), color = UpColors.Line)
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Ganhos de hoje", color = UpColors.Muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text(moneyOrEmpty(driver?.saldoHoje, hidden), color = UpColors.Ink, fontWeight = FontWeight.Black, fontSize = 25.sp, maxLines = 1)
+            }
             Column(horizontalAlignment = Alignment.End) {
-                Text("${driver?.corridasHoje ?: 0} corridas", color = UpColors.Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(if (driver == null) "sincronizando" else "hoje", color = UpColors.Muted, fontSize = 13.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.TwoWheeler, contentDescription = null, tint = UpColors.Green, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("${driver?.corridasHoje ?: 0}", color = UpColors.Ink, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                }
+                Text(if (driver == null) "sincronizando" else "corridas hoje", color = UpColors.Muted, fontSize = 11.sp, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
             RoundIcon(if (hidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, { onToggle(!hidden) }, tint = UpColors.Green, bg = UpColors.GreenSoft)
@@ -474,8 +486,8 @@ fun OperationBanner(title: String, message: String, onClick: () -> Unit) {
 fun ShortcutGrid(onHistory: () -> Unit, onEarnings: () -> Unit, onMap: () -> Unit, onSupport: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ShortcutCard("Histórico", "Ver corridas", Icons.Rounded.ListAlt, onHistory, Modifier.weight(1f))
-            ShortcutCard("Ganhos", "Resumo financeiro", Icons.Rounded.AccountBalanceWallet, onEarnings, Modifier.weight(1f))
+            ShortcutCard("Histórico", "Ver corridas", Icons.Rounded.History, onHistory, Modifier.weight(1f))
+            ShortcutCard("Ganhos", "Resumo financeiro", Icons.Rounded.Payments, onEarnings, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ShortcutCard("Mapa", "Ver região", Icons.Rounded.Map, onMap, Modifier.weight(1f))
@@ -540,15 +552,16 @@ fun ActiveRidePanel(ride: Ride, onMap: () -> Unit, onAdvance: () -> Unit, onOccu
 
 @Composable
 fun LocationRow(label: String, title: String, text: String, color: Color) {
+    val icon = if (label.contains("Coleta", ignoreCase = true)) Icons.Rounded.Storefront else Icons.Rounded.LocationOn
     Row(verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(36.dp).clip(CircleShape).background(color.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        Box(Modifier.size(38.dp).clip(CircleShape).background(color.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(21.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(label, color = color, fontWeight = FontWeight.Black, fontSize = 12.sp)
-            Text(title, color = UpColors.Ink, fontWeight = FontWeight.Black, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(text, color = UpColors.Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, color = UpColors.Ink, fontWeight = FontWeight.Black, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text, color = UpColors.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -706,6 +719,20 @@ fun PhoneBoxIllustration(modifier: Modifier = Modifier) {
         drawRoundRect(Color.White.copy(alpha = .92f), topLeft = Offset(w*.10f, h*.62f), size = Size(w*.72f, h*.24f), cornerRadius = CornerRadius(8f,8f))
         drawRoundRect(UpColors.Green.copy(alpha = .65f), topLeft = Offset(w*.14f, h*.58f), size = Size(w*.22f, h*.20f), cornerRadius = CornerRadius(6f,6f))
         drawRoundRect(UpColors.Green.copy(alpha = .65f), topLeft = Offset(w*.38f, h*.58f), size = Size(w*.22f, h*.20f), cornerRadius = CornerRadius(6f,6f))
+    }
+}
+
+@Composable
+fun AppVersionChip(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(UpColors.Surface)
+            .border(1.dp, UpColors.Line, RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("V15", color = UpColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 

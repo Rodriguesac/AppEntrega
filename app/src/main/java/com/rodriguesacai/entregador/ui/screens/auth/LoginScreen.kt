@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rodriguesacai.entregador.ui.components.AuthCard
+import com.rodriguesacai.entregador.ui.components.AppVersionChip
 import com.rodriguesacai.entregador.ui.components.FormField
 import com.rodriguesacai.entregador.ui.components.LoginMotoIllustration
 import com.rodriguesacai.entregador.ui.components.PrimaryAction
@@ -48,6 +49,7 @@ fun LoginScreen(
     AuthCard {
         Spacer(Modifier.height(8.dp))
         UpLogo()
+        AppVersionChip()
         Spacer(Modifier.height(10.dp))
         Text("Bem-vindo(a)!", color = UpColors.Ink, fontSize = 27.sp, fontWeight = FontWeight.Black)
         Text("Acesse sua conta para continuar fazendo entregas com a Up.", color = UpColors.Text, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 20.sp)

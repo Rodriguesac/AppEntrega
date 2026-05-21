@@ -2,15 +2,21 @@
 setlocal
 chcp 65001 >nul
 echo.
-echo Aplicando Rodrigues Entregador V11 Nativo V8 Fiel UI Real...
-echo Este BAT copia arquivos para a pasta atual e NAO faz commit nem push.
+echo Rodrigues Entregador Nativo V15 - icones e UI padrao
+echo Este BAT NAO faz commit e NAO faz push.
 echo.
 if not exist app (
   echo ERRO: execute este BAT dentro da pasta do repositorio rodrigues-entregador-nativo.
   pause
   exit /b 1
 )
-echo Limpando arquivos de documentacao antigos se existirem...
+echo Limpando docs/arquivos soltos antigos...
 for %%F in (README.md LEIA*.txt *.md) do if exist "%%F" del /f /q "%%F"
-echo Pronto. Agora use: git status, git add -A, git commit, git push.
+echo.
+echo Pronto. Agora rode:
+echo git status
+echo git add -A
+echo git commit -m "Rodrigues Entregador nativo V15 icones UI padrao"
+echo git push origin main
+echo.
 pause
