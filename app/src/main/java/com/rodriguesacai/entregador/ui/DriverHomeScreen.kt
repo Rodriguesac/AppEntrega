@@ -14,6 +14,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
@@ -74,6 +75,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -115,6 +117,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.CloudOff
 import coil.compose.AsyncImage
 import com.rodriguesacai.entregador.AppSettings
+import com.rodriguesacai.entregador.R
 import com.rodriguesacai.entregador.PermissionStatusReader
 import com.rodriguesacai.entregador.RodriguesFonts
 import com.rodriguesacai.entregador.data.AppCarouselBanner
@@ -131,20 +134,22 @@ import kotlinx.coroutines.delay
 private enum class AppTab { Inicio, Corridas, Ganhos, Historico, Conta }
 
 private val AppFont = RodriguesFonts.Montserrat
-private val BgTop = Color(0xFFF7FAF4)
-private val BgBottom = Color(0xFFF1F5EE)
+private val BgTop = Color(0xFFF7FAF6)
+private val BgBottom = Color(0xFFEFF4EF)
 private val Panel = Color.White
 private val PanelSoft = Color.White
 private val Purple = Color(0xFF008A2E)
 private val Purple2 = Color(0xFFFF7A00)
-private val Lime = Color(0xFF118C35)
+private val Lime = Color(0xFF008A2E)
 private val LimeDark = Color(0xFF006B2A)
 private val Ink = Color(0xFF111318)
-private val Muted = Color(0xFF4F5864)
-private val Muted2 = Color(0xFF8A929D)
-private val Danger = Color(0xFFFF4D6D)
-private val Warning = Color(0xFFE99A00)
+private val Muted = Color(0xFF5D6670)
+private val Muted2 = Color(0xFF96A0AA)
+private val Danger = Color(0xFFE7192B)
+private val Warning = Color(0xFFFF9900)
 private val Blue = Color(0xFF1677FF)
+private val BorderSoft = Color(0xFFE1E8DF)
+private val FillSoft = Color(0xFFF8FBF6)
 
 private enum class AvailabilityKind { Disponivel, Indisponivel, Restricao, EmEntrega }
 
@@ -398,6 +403,7 @@ fun DriverHomeScreen(
     }
 }
 
+
 @Composable
 private fun LoginScreen(
     error: String,
@@ -422,8 +428,8 @@ private fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(BgTop, BgBottom)))
-            .padding(18.dp)
+            .background(BgTop)
+            .padding(horizontal = 22.dp, vertical = 18.dp)
     ) {
         Column(
             modifier = Modifier
@@ -431,21 +437,17 @@ private fun LoginScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center
         ) {
-            Text("Rodrigues entregas", color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
-            Text("Acesso do entregador", color = Lime, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
-            Spacer(Modifier.height(18.dp))
-            GlassCard(padding = 18) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ModeButton("Entrar", mode == "login", Modifier.weight(1f)) { mode = "login" }
-                    ModeButton("Cadastrar", mode == "cadastro", Modifier.weight(1f)) { mode = "cadastro" }
-                }
-                Spacer(Modifier.height(18.dp))
+            RodriguesLogoBlock(compact = false)
+            Spacer(Modifier.height(22.dp))
 
-                if (mode == "login") {
-                    SectionTitle("Entrar", "CPF ou telefone e senha.")
-                    Spacer(Modifier.height(14.dp))
+            if (mode == "login") {
+                PremiumScreenCard {
+                    Text("Bem-vindo(a)!", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    Text("Acesse sua conta para continuar fazendo entregas.", color = Muted, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
+                    Spacer(Modifier.height(24.dp))
                     AppField(login, { login = it }, "CPF ou telefone", KeyboardType.Number)
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(12.dp))
                     AppField(
                         value = password,
                         onValueChange = { password = it },
@@ -455,90 +457,163 @@ private fun LoginScreen(
                         trailing = if (showPassword) "ocultar" else "ver",
                         onTrailing = { showPassword = !showPassword }
                     )
-                    Spacer(Modifier.height(14.dp))
-                    PrimaryButton(
-                        text = "Entrar",
-                        enabled = !loading,
-                        loading = loading,
-                        onClick = { onLogin(login, password) { loading = it } }
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Entregador antigo sem senha entra uma vez e cria a senha no primeiro acesso.",
-                        color = Muted2,
-                        fontSize = 12.sp,
-                        fontFamily = AppFont
-                    )
-                } else {
-                    SectionTitle("Cadastro de entregador", "Envie seus dados. O gestor aprova antes de liberar pedidos.")
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(18.dp))
+                    PrimaryButton(text = "Entrar", enabled = !loading, loading = loading) { onLogin(login, password) { loading = it } }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedActionButton("Solicitar cadastro", Icons.Filled.Person) { mode = "cadastro" }
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(onClick = { mode = "senha" }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                        Text("Esqueci minha senha", color = LimeDark, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    LoginHeroIllustration()
+                }
+            } else if (mode == "cadastro") {
+                PremiumScreenCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        HeaderBackCircle { mode = "login" }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Solicitar cadastro", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                            Text("Dados, veículo e recebimento", color = Muted, fontSize = 13.sp, fontFamily = AppFont)
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    RegistrationSteps(current = 1)
+                    Spacer(Modifier.height(18.dp))
                     AppField(name, { name = it }, "Nome completo")
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        AppField(cpf, { cpf = it }, "CPF", KeyboardType.Number, modifier = Modifier.weight(1f))
-                        AppField(phone, { phone = it }, "WhatsApp", KeyboardType.Phone, modifier = Modifier.weight(1f))
-                    }
+                    AppField(cpf, { cpf = it }, "CPF", KeyboardType.Number)
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        AppField(vehicle, { vehicle = it }, "Veículo", modifier = Modifier.weight(1f))
-                        AppField(plate, { plate = it.uppercase() }, "Placa", modifier = Modifier.weight(1f))
-                    }
+                    AppField(phone, { phone = it }, "Telefone", KeyboardType.Phone)
+                    Spacer(Modifier.height(10.dp))
+                    AppField(vehicle, { vehicle = it }, "Veículo")
+                    Spacer(Modifier.height(10.dp))
+                    AppField(plate, { plate = it }, "Placa")
                     Spacer(Modifier.height(10.dp))
                     AppField(pix, { pix = it }, "Chave Pix")
                     Spacer(Modifier.height(10.dp))
-                    AppField(bank, { bank = it }, "Banco / recebimento")
+                    AppField(bank, { bank = it }, "Banco")
                     Spacer(Modifier.height(10.dp))
                     AppField(newPassword, { newPassword = it }, "Criar senha", KeyboardType.Password, PasswordVisualTransformation())
-                    Spacer(Modifier.height(14.dp))
-                    PrimaryButton(
-                        text = "Enviar cadastro",
-                        enabled = !loading,
-                        loading = loading,
-                        onClick = { onRegister(DriverRegistrationRequest(name, cpf, phone, newPassword, vehicle, plate, pix, bank)) { loading = it } }
-                    )
+                    Spacer(Modifier.height(18.dp))
+                    PrimaryButton(text = "Enviar cadastro", enabled = !loading, loading = loading) {
+                        onRegister(
+                            DriverRegistrationRequest(name, cpf, phone, newPassword, vehicle, plate, pix, bank)
+                        ) { loading = it }
+                    }
+                    TextButton(onClick = { mode = "login" }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                        Text("Já tenho conta", color = LimeDark, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                    }
                 }
-
-                if (error.isNotBlank()) {
-                    Spacer(Modifier.height(12.dp))
-                    StatusMessage(error, isError = true)
-                }
-                if (notice.isNotBlank()) {
-                    Spacer(Modifier.height(12.dp))
-                    StatusMessage(notice, isError = false)
+            } else {
+                PremiumScreenCard {
+                    RodriguesLogoBlock(compact = true)
+                    Spacer(Modifier.height(22.dp))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(120.dp).clip(RoundedCornerShape(34.dp)).background(Color(0xFFEAF8EE)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Shield, contentDescription = null, tint = Lime, modifier = Modifier.size(72.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    Text("Criar sua senha", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text("Informe CPF/telefone e uma nova senha. O gestor poderá validar a alteração.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), fontFamily = AppFont)
+                    Spacer(Modifier.height(18.dp))
+                    AppField(login, { login = it }, "CPF ou telefone", KeyboardType.Number)
+                    Spacer(Modifier.height(10.dp))
+                    AppField(newPassword, { newPassword = it }, "Nova senha", KeyboardType.Password, PasswordVisualTransformation())
+                    Spacer(Modifier.height(16.dp))
+                    PrimaryButton("Salvar e continuar") { mode = "login" }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedActionButton("Voltar ao login", Icons.Filled.KeyboardArrowRight) { mode = "login" }
                 }
             }
-            Spacer(Modifier.height(18.dp))
+
+            if (error.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                StatusMessage(error, true)
+            }
+            if (notice.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                StatusMessage(notice, false)
+            }
         }
     }
 }
 
 @Composable
-private fun BrandHero() {
-    GlassCard(padding = 18) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(listOf(Purple, Purple2, Lime)))
-                    .border(1.dp, Color.White.copy(alpha = .20f), RoundedCornerShape(22.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("R", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Rodrigues Entregador", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text("Operação nativa para motoboys", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+private fun RodriguesLogoBlock(compact: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
+            Text("Rodrigues", color = Lime, fontSize = if (compact) 28.sp else 38.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Spacer(Modifier.width(6.dp))
+            Text("entregas", color = Ink, fontSize = if (compact) 18.sp else 24.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        }
+        if (!compact) Text("Operação nativa do entregador", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+    }
+}
+
+@Composable
+private fun PremiumScreenCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth().border(1.dp, BorderSoft, RoundedCornerShape(28.dp))
+    ) {
+        Column(Modifier.padding(22.dp), content = content)
+    }
+}
+
+@Composable
+private fun LoginHeroIllustration() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFFF3FAF0), Color(0xFFE4F1E3))))
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            drawCircle(Color(0xFFB9E8C1).copy(alpha = .35f), radius = size.minDimension * .55f, center = Offset(size.width * .82f, size.height * .62f))
+            drawLine(Color.White, Offset(0f, size.height * .78f), Offset(size.width, size.height * .52f), strokeWidth = 16f)
+        }
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp).size(80.dp, 54.dp).clip(RoundedCornerShape(18.dp)).background(Lime), contentAlignment = Alignment.Center) {
+            Text("R", color = Color.White, fontWeight = FontWeight.Black, fontSize = 26.sp, fontFamily = AppFont)
+        }
+        Icon(Icons.Filled.TwoWheeler, contentDescription = null, tint = LimeDark, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp).size(120.dp))
+    }
+}
+
+@Composable
+private fun RegistrationSteps(current: Int) {
+    val steps = listOf("Dados", "Documentos", "Confirmação", "Conclusão")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        steps.forEachIndexed { index, label ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(30.dp).clip(CircleShape).background(if (index + 1 <= current) Lime else Color(0xFFF1F3F1)).border(1.dp, if (index + 1 <= current) Lime else BorderSoft, CircleShape), contentAlignment = Alignment.Center) {
+                    Text("${index + 1}", color = if (index + 1 <= current) Color.White else Muted, fontWeight = FontWeight.Black, fontSize = 12.sp, fontFamily = AppFont)
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(label, color = if (index + 1 == current) LimeDark else Muted2, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1)
             }
         }
-        Spacer(Modifier.height(16.dp))
-        RealDeliveryMap(
-            title = "Rodrigues no mapa",
-            subtitle = "Mapa real nativo com rota por TomTom",
-            pickupAddress = "Rodrigues Açaí e Cia, Campo Grande, MS",
-            dropoffAddress = "Carandá Bosque, Campo Grande, MS"
-        )
+    }
+}
+
+@Composable
+private fun HeaderBackCircle(onClick: () -> Unit) {
+    Box(Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFF4F7F3)).clickable { onClick() }, contentAlignment = Alignment.Center) {
+        Text("‹", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun OutlinedActionButton(text: String, icon: ImageVector, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(18.dp)) {
+        Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = LimeDark, fontWeight = FontWeight.Black, fontFamily = AppFont)
     }
 }
 
@@ -704,14 +779,47 @@ private fun HomeContent(
         Spacer(Modifier.height(10.dp))
     }
 }
+
+@Composable
+private fun LocalOrRemoteBannerImage(imageUrl: String, contentDescription: String, modifier: Modifier = Modifier) {
+    val localRes = imageUrl.localBannerResource()
+    if (localRes != null) {
+        Image(
+            painter = painterResource(localRes),
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+    } else {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+    }
+}
+
+private fun String.localBannerResource(): Int? {
+    val key = trim().lowercase(Locale.ROOT)
+    return when (key) {
+        "asset://banner_pico", "asset://pico", "local://banner_pico" -> R.drawable.banner_pico
+        "asset://banner_indique_ganhe", "asset://indique", "local://banner_indique_ganhe" -> R.drawable.banner_indique_ganhe
+        "asset://banner_seguranca", "asset://seguranca", "local://banner_seguranca" -> R.drawable.banner_seguranca
+        else -> null
+    }
+}
+
 private fun defaultHomeBanners(status: OperationalStatus): List<AppCarouselBanner> {
     val first = when (status.kind) {
         AvailabilityKind.Disponivel -> AppCarouselBanner(
             id = "local-novidades-operacao",
-            title = "Novidades da operação",
-            badge = "NOVIDADES",
-            description = "Fique por dentro das melhorias, comunicados importantes e novas corridas da central.",
-            buttonText = "Saiba mais",
+            title = "",
+            badge = "",
+            description = "",
+            buttonText = "",
+            imageUrl = "asset://banner_pico",
+            displayMode = "image_only",
             order = 1,
             active = true,
             actionType = "internal",
@@ -753,10 +861,12 @@ private fun defaultHomeBanners(status: OperationalStatus): List<AppCarouselBanne
         first,
         AppCarouselBanner(
             id = "local-indique",
-            title = "Indique e ganhe",
-            badge = "PROGRAMA",
-            description = "Convide entregadores e acompanhe campanhas de recompensa enviadas pelo gestor.",
-            buttonText = "Ver campanha",
+            title = "",
+            badge = "",
+            description = "",
+            buttonText = "",
+            imageUrl = "asset://banner_indique_ganhe",
+            displayMode = "image_only",
             order = 2,
             active = true,
             actionType = "internal",
@@ -764,10 +874,12 @@ private fun defaultHomeBanners(status: OperationalStatus): List<AppCarouselBanne
         ),
         AppCarouselBanner(
             id = "local-seguranca",
-            title = "Segurança em primeiro lugar",
-            badge = "ATENÇÃO",
-            description = "Use capacete, respeite o trânsito e registre ocorrência quando houver problema na entrega.",
-            buttonText = "Orientações",
+            title = "",
+            badge = "",
+            description = "",
+            buttonText = "",
+            imageUrl = "asset://banner_seguranca",
+            displayMode = "image_only",
             order = 3,
             active = true,
             actionType = "internal",
@@ -857,10 +969,9 @@ private fun AppHomeBannerCard(banner: AppCarouselBanner, onAction: () -> Unit) {
             .then(if (clickable) Modifier.clickable { onAction() } else Modifier)
     ) {
         if (hasImage && !textOnly) {
-            AsyncImage(
-                model = banner.imageUrl,
+            LocalOrRemoteBannerImage(
+                imageUrl = banner.imageUrl,
                 contentDescription = banner.title.ifBlank { "Banner do app" },
-                contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize()
             )
             if (!imageOnly) {
@@ -1089,7 +1200,7 @@ private fun DriverHeader(
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(operational.label, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, modifier = Modifier.weight(1f))
-                Icon(Icons.Filled.ExpandLess, contentDescription = null, tint = operational.textColor.copy(alpha = .85f), modifier = Modifier.size(22.dp))
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = operational.textColor.copy(alpha = .85f), modifier = Modifier.size(22.dp))
             }
         }
     }
@@ -1810,9 +1921,9 @@ private fun AccountContent(
                 onClick = onToggleValues,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF232129), contentColor = Ink)
+                colors = ButtonDefaults.buttonColors(containerColor = FillSoft, contentColor = Ink)
             ) {
-                Icon(if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, contentDescription = null, tint = Muted, modifier = Modifier.size(19.dp))
+                Icon(if (hideValues) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, contentDescription = null, tint = Lime, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(if (hideValues) "Mostrar valores" else "Ocultar valores", fontWeight = FontWeight.Black)
             }
@@ -1976,7 +2087,7 @@ private fun SettingsCenterContent(
             SettingButton("Problemas com corrida", "Relatar ocorrência")
         }
         SettingsSection("Sobre") {
-            SettingButton("Versão do app", "5.3.2 aguarda loja")
+            SettingButton("Versão do app", "6.5.0 reconstrução visual fiel")
             SettingButton("Termos e privacidade", "Documentos do app")
         }
     }
@@ -1996,7 +2107,7 @@ private fun SettingButton(title: String, subtitle: String) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = .06f))
+            .background(FillSoft)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2060,7 +2171,7 @@ private fun MoreContent(
 
         GlassCard(padding = 18) {
             Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 6.0.0 • UI operacional", color = Muted2, fontSize = 12.sp)
+            Text("Versão 6.5.0 • reconstrução visual fiel", color = Muted2, fontSize = 12.sp)
         }
     }
 }
@@ -2086,12 +2197,12 @@ private fun PermissionRow(label: String, ok: Boolean, onFix: () -> Unit) {
 @Composable
 private fun GlassCard(padding: Int = 16, borderColor: Color = Color(0xFFE4E8EF), content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = PanelSoft),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, borderColor, RoundedCornerShape(28.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(24.dp))
     ) {
         Column(Modifier.padding(padding.dp), content = content)
     }
@@ -2168,7 +2279,7 @@ private fun TinyChip(text: String, selected: Boolean, modifier: Modifier = Modif
 @Composable
 private fun StatusMessage(text: String, isError: Boolean) {
     Card(colors = CardDefaults.cardColors(containerColor = if (isError) Color(0xFF421824) else LimeDark), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(text, color = if (isError) Color(0xFFFFC4D0) else Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
+        Text(text, color = if (isError) Color(0xFFFFC4D0) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
     }
 }
 
@@ -2178,8 +2289,8 @@ private fun Avatar(name: String, photoUrl: String = "") {
         Modifier
             .size(58.dp)
             .clip(CircleShape)
-            .background(Brush.linearGradient(listOf(Purple, Purple2, Lime)))
-            .border(2.dp, Color.White.copy(alpha = 0.20f), CircleShape),
+            .background(Color(0xFFE2F7E7))
+            .border(2.dp, Color.White, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         if (photoUrl.isNotBlank()) {
@@ -2189,7 +2300,7 @@ private fun Avatar(name: String, photoUrl: String = "") {
                 modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
         } else {
-            Text(name.trim().firstOrNull()?.uppercase() ?: "E", color = Ink, fontWeight = FontWeight.Black, fontSize = 22.sp, fontFamily = AppFont)
+            Text(name.trim().firstOrNull()?.uppercase() ?: "E", color = LimeDark, fontWeight = FontWeight.Black, fontSize = 22.sp, fontFamily = AppFont)
         }
     }
 }
