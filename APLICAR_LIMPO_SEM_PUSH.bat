@@ -2,7 +2,7 @@
 setlocal
 chcp 65001 >nul
 echo.
-echo Rodrigues Entregador Nativo V15 - icones e UI padrao
+echo Rodrigues Entregador Nativo V16 - APK unico e UI padrao
 echo Este BAT NAO faz commit e NAO faz push.
 echo.
 if not exist app (
@@ -16,7 +16,7 @@ echo.
 echo Pronto. Agora rode:
 echo git status
 echo git add -A
-echo git commit -m "Rodrigues Entregador nativo V15 icones UI padrao"
+echo git commit -m "Rodrigues Entregador V16 APK unico"
 echo git push origin main
 echo.
 pause

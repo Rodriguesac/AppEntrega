@@ -732,7 +732,7 @@ fun AppVersionChip(modifier: Modifier = Modifier) {
             .padding(horizontal = 10.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("V15", color = UpColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("V16", color = UpColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
