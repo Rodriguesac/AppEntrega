@@ -550,7 +550,7 @@ private fun LoginScreen(
 }
 
 @Composable
-private fun RodriguesLogoBlock(compact: Boolean) {
+private fun RodriguesLogoBlock(compact: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
             Text("Rodrigues", color = Lime, fontSize = if (compact) 28.sp else 38.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)

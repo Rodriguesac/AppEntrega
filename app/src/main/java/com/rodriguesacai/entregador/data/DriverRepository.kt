@@ -1005,6 +1005,55 @@ object DriverRepository {
         )
     }
 
+
+    private fun DocumentSnapshot.toAppNotice(collectionName: String): AppNotice? {
+        val title = anyString("title", "titulo", "título", "headline", "assunto", "nome").ifBlank { "Aviso da operação" }
+        val message = anyString("message", "mensagem", "description", "descricao", "descrição", "body", "texto", "conteudo", "conteúdo")
+        val category = anyString("category", "categoria", "tipo").ifBlank { "Operação" }
+        val priority = anyString("priority", "prioridade", "nivel", "nível").ifBlank { "NORMAL" }
+        val status = anyString("status", "situacao", "situação").upperOrTrim()
+        val activeByStatus = status.isBlank() || status in setOf("ATIVO", "ACTIVE", "APROVADO", "PUBLICADO", "ONLINE", "ENVIADO")
+        val active = anyBoolean("active", "ativo", "enabled", "visivel", "visível", "publicado") ?: activeByStatus
+        val startsAtMillis = anyTimestamp("startsAt", "inicioEm", "começaEm", "comecaEm", "dataInicio")?.toDate()?.time
+            ?: anyString("startsAt", "inicio", "inicioEm", "dataInicio").toFlexibleMillisOrNull()
+        val endsAtMillis = anyTimestamp("endsAt", "fimEm", "terminaEm", "dataFim")?.toDate()?.time
+            ?: anyString("endsAt", "fim", "fimEm", "dataFim").toFlexibleMillisOrNull()
+        val createdAtMillis = anyTimestamp("createdAt", "criadoEm", "dataCriacao", "dataCriação", "enviadoEm", "timestamp")?.toDate()?.time
+            ?: anyString("createdAt", "criadoEm", "data", "enviadoEm", "timestamp").toFlexibleMillisOrNull()
+            ?: System.currentTimeMillis()
+        val targetDriverId = anyString(
+            "targetDriverId",
+            "entregadorId",
+            "entregadorUid",
+            "motoboyId",
+            "driverId",
+            "uidEntregador",
+            "destinatarioId",
+            "destinatárioId"
+        )
+        val targetGroup = anyString("targetGroup", "grupo", "publico", "público").ifBlank { "all" }
+        if (title.isBlank() && message.isBlank()) return null
+        return AppNotice(
+            id = id,
+            collectionName = collectionName,
+            title = title,
+            message = message,
+            category = category,
+            priority = priority,
+            actionType = anyString("actionType", "tipoAcao", "tipoAção", "acao", "ação").ifBlank { "none" },
+            actionTarget = anyString("actionTarget", "destino", "target", "url", "link"),
+            targetDriverId = targetDriverId,
+            targetGroup = targetGroup,
+            read = anyBoolean("read", "lido", "visualizado") ?: false,
+            active = active,
+            order = anyDouble("order", "ordem", "position", "posicao", "posição")?.toInt() ?: 999,
+            createdAtMillis = createdAtMillis,
+            createdLabel = Date(createdAtMillis).formatHistoryLabel(),
+            startsAtMillis = startsAtMillis,
+            endsAtMillis = endsAtMillis
+        )
+    }
+
     private fun DocumentSnapshot.toAppCarouselBanner(collectionName: String): AppCarouselBanner? {
         val title = anyString("title", "titulo", "nome", "headline")
         val imageUrl = anyString("imageUrl", "imagemUrl", "urlImagem", "image", "imagem", "bannerUrl", "fotoUrl")
