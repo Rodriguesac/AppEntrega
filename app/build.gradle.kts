@@ -1,3 +1,5 @@
+import java.net.URL
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,8 +15,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.9.0-ui-travada-fiel"
+        versionCode = 10
+        versionName = "0.10.0-fonte-embarcada"
         manifestPlaceholders["MAPS_API_KEY"] = "AIzaSyBkCcdbR8Z9V9DB0wAJfC_YiRaNe8nnaA4"
     }
 
@@ -38,6 +40,35 @@ android {
         compose = true
         buildConfig = true
     }
+}
+
+val downloadUpFonts by tasks.registering {
+    val fontDir = file("src/main/res/font")
+    val fonts = mapOf(
+        "montserrat_regular.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/static/Montserrat-Regular.ttf",
+        "montserrat_medium.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/static/Montserrat-Medium.ttf",
+        "montserrat_semibold.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/static/Montserrat-SemiBold.ttf",
+        "montserrat_bold.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/static/Montserrat-Bold.ttf",
+        "montserrat_extrabold.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/static/Montserrat-ExtraBold.ttf",
+        "montserrat_black.ttf" to "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/static/Montserrat-Black.ttf"
+    )
+    outputs.dir(fontDir)
+    doLast {
+        fontDir.mkdirs()
+        fonts.forEach { (fileName, url) ->
+            val target = fontDir.resolve(fileName)
+            if (!target.exists() || target.length() < 10_000L) {
+                println("Baixando fonte do app: $fileName")
+                URL(url).openStream().use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+    }
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn(downloadUpFonts)
 }
 
 dependencies {
