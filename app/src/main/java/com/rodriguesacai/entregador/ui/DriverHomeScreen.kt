@@ -124,6 +124,7 @@ import com.rodriguesacai.entregador.RodriguesFonts
 import com.rodriguesacai.entregador.data.AppCarouselBanner
 import com.rodriguesacai.entregador.data.AppNotice
 import com.rodriguesacai.entregador.data.DriverHistory
+import com.rodriguesacai.entregador.data.DriverPayout
 import com.rodriguesacai.entregador.data.DriverProfile
 import com.rodriguesacai.entregador.data.DriverRegistrationRequest
 import com.rodriguesacai.entregador.data.DriverRepository
@@ -1612,14 +1613,12 @@ private fun RidesEmptyGuide(title: String, message: String) {
 private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history: List<DriverHistory>, onEditBank: () -> Unit) {
     val context = LocalContext.current
     var visible by remember { mutableStateOf(!AppSettings.getHideValues(context)) }
-    val pendingBalance = remember(stats) { (stats.totalWeek - stats.totalToday).coerceAtLeast(0.0) }
-    val totalToReceive = remember(stats) { stats.totalWeek.coerceAtLeast(stats.totalToday) }
-    val payoutRows = remember(history) {
-        history
-            .filter { it.historyKind() == "Finalizada" }
-            .sortedByDescending { it.createdAtMillis }
-            .take(3)
-    }
+    val availableBalance = remember(stats) { stats.saldoDisponivel ?: stats.totalToday }
+    val pendingBalance = remember(stats) { stats.saldoPendente ?: 0.0 }
+    val totalToReceive = remember(stats) { stats.totalAReceber ?: (availableBalance + pendingBalance) }
+    val payoutRows = remember(stats) { stats.payoutRows.take(3) }
+    val pixKey = remember(stats, profile) { stats.pixKey.ifBlank { profile.pixKey } }
+    val bankName = remember(stats, profile) { stats.bankName.ifBlank { profile.bankName } }
 
     Column(
         Modifier
@@ -1631,7 +1630,7 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
         WalletTopBar()
 
         WalletBalanceHero(
-            value = DriverRepository.formatCurrency(stats.totalToday),
+            value = DriverRepository.formatCurrency(availableBalance),
             visible = visible,
             onToggle = {
                 visible = !visible
@@ -1655,14 +1654,14 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
         }
 
         NextPayoutCard(
-            title = "A definir",
-            description = "Estimativa será informada pela operação."
+            title = stats.proximoRepasseLabel,
+            description = stats.proximoRepasseDescricao
         )
 
         PixSummaryCard(
-            pixKey = profile.pixKey,
-            bankName = profile.bankName,
-            verified = profile.verified,
+            pixKey = pixKey,
+            bankName = bankName,
+            verified = stats.pixVerificada || profile.verified,
             visible = visible
         )
 
@@ -1848,7 +1847,7 @@ private fun PixSummaryCard(pixKey: String, bankName: String, verified: Boolean, 
 }
 
 @Composable
-private fun LastPayoutsSection(rows: List<DriverHistory>, visible: Boolean) {
+private fun LastPayoutsSection(rows: List<DriverPayout>, visible: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Últimos repasses", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, modifier = Modifier.weight(1f))
@@ -1882,15 +1881,15 @@ private fun LastPayoutsSection(rows: List<DriverHistory>, visible: Boolean) {
 }
 
 @Composable
-private fun WalletPayoutRow(item: DriverHistory, visible: Boolean) {
+private fun WalletPayoutRow(item: DriverPayout, visible: Boolean) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(item.createdLabel.ifBlank { "Hoje" }, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
-            Text("Corrida ${item.shortRideLabel()}", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(item.method.ifBlank { "Repasse" }, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
         }
-        Text(if (visible) item.value.ifBlank { "—" } else "R$ •••••", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        Text(if (visible) item.valueLabel.ifBlank { "—" } else "R$ •••••", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
         Spacer(Modifier.width(12.dp))
-        Text("Pago", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        Text(item.statusLabel, color = if (item.statusLabel == "Pago") Lime else Warning, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
     }
 }
 

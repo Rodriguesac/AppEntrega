@@ -138,7 +138,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "6.7.0",
+            "appVersion" to "6.8.1",
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -181,7 +181,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "6.7.0"
+                "appVersion" to "6.8.1"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -221,7 +221,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "6.7.0"
+                "appVersion" to "6.8.1"
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -260,7 +260,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "6.7.0",
+                "appVersion" to "6.8.1",
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -362,7 +362,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "6.7.0"
+                "appVersion" to "6.8.1"
             ),
             SetOptions.merge()
         )
@@ -384,7 +384,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "6.7.0"
+            "appVersion" to "6.8.1"
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -626,7 +626,31 @@ object DriverRepository {
         onError: (String) -> Unit
     ): ListenerRegistration? {
         val profile = currentSession(context) ?: return null
-        return db.collection("historicoEntregador")
+
+        var historyBase = DriverStats(score = 100)
+        var walletDocStats = DriverStats(score = 100)
+        var payoutRows: List<DriverPayout> = emptyList()
+
+        fun emit() {
+            val walletAvailable = walletDocStats.saldoDisponivel ?: historyBase.totalToday
+            val walletPending = walletDocStats.saldoPendente ?: 0.0
+            val walletTotal = walletDocStats.totalAReceber ?: (walletAvailable + walletPending)
+            onStats(
+                historyBase.copy(
+                    saldoDisponivel = walletAvailable,
+                    saldoPendente = walletPending,
+                    totalAReceber = walletTotal,
+                    proximoRepasseLabel = walletDocStats.proximoRepasseLabel,
+                    proximoRepasseDescricao = walletDocStats.proximoRepasseDescricao,
+                    pixKey = walletDocStats.pixKey.ifBlank { profile.pixKey },
+                    pixVerificada = walletDocStats.pixVerificada,
+                    bankName = walletDocStats.bankName.ifBlank { profile.bankName },
+                    payoutRows = payoutRows
+                )
+            )
+        }
+
+        val historyRegistration = db.collection("historicoEntregador")
             .limit(200)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
@@ -637,8 +661,61 @@ object DriverRepository {
                     .filter { doc -> runCatching { doc.matchesDriverId(profile.id) }.getOrDefault(false) }
                     .filter { doc -> runCatching { doc.anyString("tipo", "status", "action").upperOrTrim() in FINAL_HISTORY_STATUSES }.getOrDefault(false) }
                 val total = finished.sumOf { doc -> runCatching { valueNumberFromDoc(doc) }.getOrDefault(0.0) }
-                onStats(DriverStats(totalToday = total, totalWeek = total, totalMonth = total, finishedCount = finished.size, score = 100))
+                historyBase = DriverStats(
+                    totalToday = total,
+                    totalWeek = total,
+                    totalMonth = total,
+                    finishedCount = finished.size,
+                    score = 100
+                )
+                emit()
             }
+
+        val driverWalletRegistration = db.collection(profile.collectionName).document(profile.id)
+            .addSnapshotListener { doc, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir carteira do entregador.")
+                    return@addSnapshotListener
+                }
+                walletDocStats = doc?.toWalletStats() ?: DriverStats(score = 100)
+                emit()
+            }
+
+        val payoutByUid = db.collection("repassesEntregadores")
+            .whereEqualTo("entregadorUid", profile.id)
+            .limit(50)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir repasses do gestor.")
+                    return@addSnapshotListener
+                }
+                val rows = snap?.documents.orEmpty()
+                    .mapNotNull { doc -> runCatching { doc.toDriverPayout(profile.id) }.getOrNull() }
+                payoutRows = (payoutRows + rows)
+                    .distinctBy { it.id }
+                    .sortedByDescending { it.createdAtMillis }
+                    .take(8)
+                emit()
+            }
+
+        val payoutById = db.collection("repassesEntregadores")
+            .whereEqualTo("entregadorId", profile.id)
+            .limit(50)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError(err.message ?: "Erro ao ouvir repasses do gestor.")
+                    return@addSnapshotListener
+                }
+                val rows = snap?.documents.orEmpty()
+                    .mapNotNull { doc -> runCatching { doc.toDriverPayout(profile.id) }.getOrNull() }
+                payoutRows = (payoutRows + rows)
+                    .distinctBy { it.id }
+                    .sortedByDescending { it.createdAtMillis }
+                    .take(8)
+                emit()
+            }
+
+        return CompositeListenerRegistration(listOf(historyRegistration, driverWalletRegistration, payoutByUid, payoutById))
     }
 
     fun acceptRide(context: Context, rideId: String, onDone: () -> Unit = {}, onError: (String) -> Unit = {}) {
@@ -1006,6 +1083,101 @@ object DriverRepository {
     }
 
 
+    private fun DocumentSnapshot.toWalletStats(): DriverStats {
+        val available = anyDouble(
+            "saldoDisponivel",
+            "carteira.saldoDisponivel",
+            "financeiro.saldoDisponivel",
+            "wallet.available",
+            "payout.available"
+        )
+        val pending = anyDouble(
+            "saldoPendente",
+            "carteira.saldoPendente",
+            "financeiro.saldoPendente",
+            "wallet.pending",
+            "payout.pending"
+        )
+        val totalToReceive = anyDouble(
+            "totalAReceber",
+            "carteira.totalAReceber",
+            "financeiro.totalAReceber",
+            "wallet.totalToReceive",
+            "payout.totalToReceive"
+        )
+        val nextMillis = anyTimestamp(
+            "proximoRepasseData",
+            "carteira.proximoRepasseData",
+            "financeiro.proximoRepasseData",
+            "proximoRepasseEm",
+            "nextPayoutAt"
+        )?.toDate()?.time ?: anyString(
+            "proximoRepasseData",
+            "carteira.proximoRepasseData",
+            "financeiro.proximoRepasseData",
+            "proximoRepasseEm",
+            "nextPayoutAt"
+        ).toFlexibleMillisOrNull()
+
+        return DriverStats(
+            saldoDisponivel = available,
+            saldoPendente = pending,
+            totalAReceber = totalToReceive,
+            proximoRepasseLabel = nextMillis?.let { Date(it).formatHistoryLabel() } ?: anyString(
+                "proximoRepasseLabel",
+                "carteira.proximoRepasseLabel",
+                "financeiro.proximoRepasseLabel"
+            ).ifBlank { "A definir" },
+            proximoRepasseDescricao = anyString(
+                "proximoRepasseDescricao",
+                "carteira.proximoRepasseDescricao",
+                "financeiro.proximoRepasseDescricao",
+                "nextPayoutDescription"
+            ).ifBlank { "Estimativa será informada pela operação." },
+            pixKey = anyString("chavePix", "pix", "pixKey", "carteira.pixChave", "financeiro.pixChave"),
+            pixVerificada = anyBoolean("pixVerificada", "carteira.pixVerificada", "financeiro.pixVerificada") ?: false,
+            bankName = anyString("banco", "bank", "bankName", "carteira.banco", "financeiro.banco")
+        )
+    }
+
+    private fun DocumentSnapshot.toDriverPayout(driverId: String): DriverPayout? {
+        if (!matchesDriverId(driverId)) return null
+        val value = anyDouble("valor", "amount", "value", "valorRepasse", "valorPago", "total")
+            ?: anyString("valor", "amount", "value", "valorRepasse", "valorPago", "total").toMoneyDouble()
+            ?: 0.0
+        val statusRaw = anyString("status", "situacao", "situação").upperOrTrim().ifBlank { "PENDENTE" }
+        val createdMillis = anyTimestamp(
+            "dataPagamento",
+            "pagoEm",
+            "paidAt",
+            "data",
+            "programadoEm",
+            "scheduledAt",
+            "createdAt",
+            "criadoEm"
+        )?.toDate()?.time ?: anyString(
+            "dataPagamento",
+            "pagoEm",
+            "paidAt",
+            "data",
+            "programadoEm",
+            "scheduledAt",
+            "createdAt",
+            "criadoEm"
+        ).toFlexibleMillisOrNull() ?: System.currentTimeMillis()
+        return DriverPayout(
+            id = id,
+            value = value,
+            valueLabel = formatCurrency(value),
+            status = statusRaw,
+            statusLabel = statusRaw.payoutStatusLabel(),
+            createdAtMillis = createdMillis,
+            createdLabel = Date(createdMillis).formatHistoryLabel(),
+            method = anyString("metodo", "method", "forma", "tipo").ifBlank { "Pix" },
+            note = anyString("observacao", "observação", "note", "descricao", "descrição")
+        )
+    }
+
     private fun DocumentSnapshot.toAppNotice(collectionName: String): AppNotice? {
         val title = anyString("title", "titulo", "título", "headline", "assunto", "nome").ifBlank { "Aviso da operação" }
         val message = anyString("message", "mensagem", "description", "descricao", "descrição", "body", "texto", "conteudo", "conteúdo")
@@ -1212,6 +1384,17 @@ object DriverRepository {
         }
     }
 
+    private fun String.payoutStatusLabel(): String {
+        val s = upperOrTrim()
+        return when {
+            s.contains("PAGO") || s.contains("PAID") -> "Pago"
+            s.contains("PROCESS") || s.contains("ANDAMENTO") -> "Processando"
+            s.contains("CANCEL") || s.contains("ESTORN") -> "Cancelado"
+            s.contains("AGEND") || s.contains("PROGRAM") -> "Agendado"
+            else -> "Pendente"
+        }
+    }
+
     private fun String.onlyDigits(): String = filter { it.isDigit() }
 
     private fun maskCpf(digits: String): String {
@@ -1268,12 +1451,33 @@ data class DriverRegistrationRequest(
     val bankName: String = ""
 )
 
+data class DriverPayout(
+    val id: String,
+    val value: Double = 0.0,
+    val valueLabel: String = "R$ 0,00",
+    val status: String = "PENDENTE",
+    val statusLabel: String = "Pendente",
+    val createdAtMillis: Long = 0L,
+    val createdLabel: String = "Agora",
+    val method: String = "Pix",
+    val note: String = ""
+)
+
 data class DriverStats(
     val totalToday: Double = 0.0,
     val totalWeek: Double = 0.0,
     val totalMonth: Double = 0.0,
     val finishedCount: Int = 0,
-    val score: Int = 100
+    val score: Int = 100,
+    val saldoDisponivel: Double? = null,
+    val saldoPendente: Double? = null,
+    val totalAReceber: Double? = null,
+    val proximoRepasseLabel: String = "A definir",
+    val proximoRepasseDescricao: String = "Estimativa será informada pela operação.",
+    val pixKey: String = "",
+    val pixVerificada: Boolean = false,
+    val bankName: String = "",
+    val payoutRows: List<DriverPayout> = emptyList()
 )
 
 data class DriverHistory(

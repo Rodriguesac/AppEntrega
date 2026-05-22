@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 680
-        versionName = "6.8.0-carteira-repasse"
+        versionCode = 681
+        versionName = "6.8.1-carteira-gestor"
     }
 
     buildFeatures { compose = true }
