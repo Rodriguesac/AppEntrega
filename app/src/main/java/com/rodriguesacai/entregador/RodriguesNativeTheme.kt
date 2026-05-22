@@ -46,7 +46,7 @@ fun RodriguesNativeTheme(
     val light = lightColorScheme(
         primary = Color(0xFF2E7D00),
         onPrimary = Color.White,
-        secondary = Color(0xFF6D36D9),
+        secondary = Color(0xFF008A2E),
         background = Color(0xFFF6F8F3),
         surface = Color.White,
         onSurface = Color(0xFF171021),

@@ -16,11 +16,11 @@ class RideFirebaseMessagingService : FirebaseMessagingService() {
         NotificationHelper.urgentRideNotification(
             context = this,
             rideId = rideId ?: "sem-id",
-            value = data["value"] ?: data["valor"] ?: data["valorRota"] ?: "R$ --",
-            distance = data["distance"] ?: data["distancia"] ?: data["distanciaKm"] ?: "-- km",
-            duration = data["duration"] ?: data["tempo"] ?: data["tempoMin"] ?: "-- min",
-            pickup = data["pickup"] ?: data["pickupAddress"] ?: data["lojaEndereco"] ?: data["nomeLoja"] ?: "Rodrigues Açaí e Cia",
-            dropoff = data["dropoff"] ?: data["dropoffAddress"] ?: data["enderecoEntrega"] ?: data["enderecoCompleto"] ?: "Endereço liberado após aceite"
+            value = data["value"] ?: data["valor"] ?: data["valorRota"] ?: "",
+            distance = data["distance"] ?: data["distancia"] ?: data["distanciaKm"] ?: "",
+            duration = data["duration"] ?: data["tempo"] ?: data["tempoMin"] ?: "",
+            pickup = data["pickup"] ?: data["pickupAddress"] ?: data["lojaEndereco"] ?: data["nomeLoja"] ?: "",
+            dropoff = data["dropoff"] ?: data["dropoffAddress"] ?: data["enderecoEntrega"] ?: data["enderecoCompleto"] ?: ""
         )
     }
 

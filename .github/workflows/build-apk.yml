@@ -28,13 +28,18 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configurar Android SDK
+      - name: Configurar Android SDK sem travar licencas
         uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
 
       - name: Aceitar licencas e instalar SDK
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
+          set +e
+          yes | sdkmanager --licenses >/dev/null
+          set -e
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Configurar Gradle 8.14
@@ -49,6 +54,8 @@ jobs:
           ls -la
           ls -la app
           grep -n "versionCode\|versionName" app/build.gradle.kts
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
 
       - name: Gerar APK
         shell: bash
@@ -61,6 +68,6 @@ jobs:
       - name: Publicar APK Debug
         uses: actions/upload-artifact@v4
         with:
-          name: Rodrigues-Entregador-V6-8-2-tipografia-fiel-debug-apk
+          name: Rodrigues-Entregador-V6-9-0-arquitetura-operacional-fiel-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error

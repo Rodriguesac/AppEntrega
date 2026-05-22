@@ -1268,12 +1268,12 @@ private fun EarningsStrip(stats: DriverStats, hideValues: Boolean) {
             }
             Divider(Modifier.height(44.dp).width(1.dp), color = Color(0xFFE5EAE4))
             Column(Modifier.weight(.75f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stats.finishedCount.toString(), color = LimeDark, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(stats.ridesTodayCount.toString(), color = LimeDark, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text("Corridas", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
             }
             Divider(Modifier.height(44.dp).width(1.dp), color = Color(0xFFE5EAE4))
             Column(Modifier.weight(.75f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${stats.score}%", color = LimeDark, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(stats.finishedTodayCount.toString(), color = LimeDark, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text("Finalizadas", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
             }
         }
@@ -1368,10 +1368,10 @@ private fun IncomingRideCard(
 
         GlassCard(padding = 0, borderColor = Color(0xFFE5EAE4)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                StopLine("COLETA", ride.pickup, Lime)
+                StopLine("COLETA", ride.pickup.ifBlank { "Coleta não informada" }, Lime)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MiniStat("Distância até coleta", ride.distance, Modifier.weight(1f))
-                    MiniStat("Tempo estimado", ride.duration, Modifier.weight(1f))
+                    MiniStat("Distância até coleta", ride.distance.ifBlank { "A definir" }, Modifier.weight(1f))
+                    MiniStat("Tempo estimado", ride.duration.ifBlank { "A definir" }, Modifier.weight(1f))
                 }
             }
             Divider(color = Color(0xFFE5EAE4))
@@ -1379,13 +1379,13 @@ private fun IncomingRideCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Valor da corrida", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
-                        Text(ride.value, color = Lime, fontSize = 36.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                        Text(ride.value.ifBlank { "A definir" }, color = Lime, fontSize = 36.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                     }
                     StatusPill("Oferta", true)
                 }
                 RealDeliveryMap(
                     title = "Preview da rota",
-                    subtitle = "${ride.distance} • ${ride.duration}",
+                    subtitle = listOf(ride.distance, ride.duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Dados da rota serão exibidos quando chegarem" },
                     pickupAddress = ride.pickup,
                     dropoffAddress = ride.dropoff.ifBlank { ride.neighborhood },
                     pickupLat = ride.pickupLat,
@@ -1393,7 +1393,7 @@ private fun IncomingRideCard(
                     dropoffLat = ride.dropoffLat,
                     dropoffLng = ride.dropoffLng
                 )
-                StopLine("ENTREGA", ride.dropoff.ifBlank { ride.neighborhood.ifBlank { "Bairro da entrega" } }, Purple2)
+                StopLine("ENTREGA", ride.dropoff.ifBlank { ride.neighborhood.ifBlank { "Área da entrega não informada" } }, Purple2)
                 Text("O endereço completo do cliente aparece conforme a regra operacional da coleta.", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
             }
         }
@@ -1437,11 +1437,17 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
         "delivering", "EM_ROTA", "SAIU_ENTREGA" -> "finished"
         else -> "pickup"
     }
-    val deliveryText = if (ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA")) {
-        ride.dropoff.ifBlank { ride.neighborhood.ifBlank { "Endereço do cliente" } }
+    val isDelivering = ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA")
+    val deliveryText = if (isDelivering) {
+        ride.dropoff.ifBlank { ride.neighborhood.ifBlank { "Endereço indisponível" } }
     } else {
         ride.neighborhood.ifBlank { "Endereço será liberado após a coleta" }
     }
+    val navDestination = if (isDelivering) ride.dropoff else ride.pickup
+    val orderLine = listOf(
+        ride.orderCode.ifBlank { ride.id.takeLast(4).uppercase(Locale.ROOT) }.let { "Pedido #$it" },
+        ride.value.takeIf { it.isNotBlank() }
+    ).filterNotNull().joinToString(" • ")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         GlassCard(padding = 0, borderColor = Color(0xFFE5EAE4)) {
@@ -1453,44 +1459,45 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(title, color = Lime, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                        Text("Pedido #${ride.orderCode.ifBlank { ride.id.takeLast(4).uppercase(Locale.ROOT) }} • ${ride.value}", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(orderLine, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     StatusPill(ride.status.statusLabel(), true)
                 }
                 RealDeliveryMap(
                     title = title,
-                    subtitle = "${ride.distance} • ${ride.duration}",
+                    subtitle = listOf(ride.distance, ride.duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Dados da rota serão exibidos quando chegarem" },
                     pickupAddress = ride.pickup,
                     dropoffAddress = if (ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA")) ride.dropoff else ride.pickup,
                     pickupLat = ride.pickupLat,
                     pickupLng = ride.pickupLng,
                     dropoffLat = ride.dropoffLat,
                     dropoffLng = ride.dropoffLng,
-                    mode = if (ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA")) DeliveryMapMode.DRIVER_TO_DROPOFF else DeliveryMapMode.DRIVER_TO_PICKUP
+                    mode = if (isDelivering) DeliveryMapMode.DRIVER_TO_DROPOFF else DeliveryMapMode.DRIVER_TO_PICKUP
                 )
             }
         }
 
         GlassCard(padding = 16) {
-            StopLine("COLETA", ride.pickup, Lime)
+            StopLine("COLETA", ride.pickup.ifBlank { "Coleta não informada" }, Lime)
             Divider(color = Color(0xFFE5EAE4))
             StopLine("ENTREGA", deliveryText, Purple2)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MiniStat("Distância", ride.distance, Modifier.weight(1f))
-                MiniStat("Tempo", ride.duration, Modifier.weight(1f))
+                MiniStat("Distância", ride.distance.ifBlank { "A definir" }, Modifier.weight(1f))
+                MiniStat("Tempo", ride.duration.ifBlank { "A definir" }, Modifier.weight(1f))
             }
         }
 
         RideFinancialPanel(ride, compact = false)
 
         OutlinedButton(
-            onClick = { onOpenNavigator(ride.pickup, if (ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA")) ride.dropoff else ride.pickup) },
+            onClick = { if (navDestination.isNotBlank()) onOpenNavigator(ride.pickup, navDestination) },
+            enabled = navDestination.isNotBlank(),
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(20.dp)
         ) {
-            Icon(Icons.Filled.Route, contentDescription = null, tint = Lime, modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.Route, contentDescription = null, tint = if (navDestination.isNotBlank()) Lime else Muted2, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Abrir navegação", color = Lime, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(if (navDestination.isNotBlank()) "Abrir navegação" else "Navegação indisponível", color = if (navDestination.isNotBlank()) Lime else Muted2, fontWeight = FontWeight.Black, fontFamily = AppFont)
         }
         PrimaryButton(nextLabel) { onUpdateRide(ride, nextStatus) }
     }
@@ -1513,10 +1520,10 @@ private fun RideFinancialPanel(ride: DriverRide, compact: Boolean) {
                     Text("Financeiro da corrida", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                     Text("Valor do app = repasse frota/piloto", color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
                 }
-                StatusPill(ride.paymentMethod.ifBlank { "Pagamento" }.take(12), true)
+                if (ride.paymentMethod.isNotBlank()) StatusPill(ride.paymentMethod.take(12), true)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MiniStat("Seu repasse", ride.value, Modifier.weight(1f))
+                MiniStat("Seu repasse", ride.value.ifBlank { "A definir" }, Modifier.weight(1f))
                 if (!compact) MiniStat("Pedido", moneyOrDash(ride.clientTotalNumber), Modifier.weight(1f))
             }
             if (receivedByDriver || ride.amountToCollectNumber > 0.0) {
@@ -1527,8 +1534,10 @@ private fun RideFinancialPanel(ride: DriverRide, compact: Boolean) {
                 if (ride.machineFeeNumber > 0.0) {
                     Text("Taxa maquininha: ${moneyOrDash(ride.machineFeeNumber)}", color = Warning, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
                 }
+            } else if (ride.paymentMethod.isBlank() && ride.clientTotalNumber <= 0.0 && ride.value.isBlank()) {
+                Text("Financeiro será exibido quando a operação enviar os dados.", color = Muted2, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
             } else {
-                Text("Cliente pago pela loja/app. Nada a repassar agora.", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                Text("Nenhum repasse para loja informado nesta etapa.", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
             }
         }
     }
@@ -1672,7 +1681,7 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
         PixSummaryCard(
             pixKey = pixKey,
             bankName = bankName,
-            verified = stats.pixVerificada || profile.verified,
+            verified = stats.pixVerificada,
             visible = visible
         )
 
@@ -1943,8 +1952,20 @@ private fun HistoryContent(history: List<DriverHistory>, embedded: Boolean = fal
                     Text("Histórico", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                     Text("Finalizadas, recusadas e expiradas em um lugar só.", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
                 }
-                Box(Modifier.size(44.dp).clip(CircleShape).background(Color.White).border(1.dp, Color(0xFFE2E8E0), CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.FilterList, contentDescription = null, tint = Lime, modifier = Modifier.size(22.dp))
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8E0), CircleShape)
+                        .clickable {
+                            val options = listOf("Todas", "Finalizadas", "Recusadas", "Expiradas")
+                            val next = (options.indexOf(filter).takeIf { it >= 0 } ?: 0) + 1
+                            filter = options[next % options.size]
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.FilterList, contentDescription = "Alternar filtro", tint = Lime, modifier = Modifier.size(22.dp))
                 }
             }
         } else {
@@ -2059,7 +2080,7 @@ private fun HistoryRideCard(item: DriverHistory, expanded: Boolean, onClick: () 
                         Spacer(Modifier.width(8.dp))
                         StatusPill(kind, kind == "Finalizada" || kind == "Aceita", Modifier)
                     }
-                    Text(item.createdLabel.ifBlank { "Agora" }, color = Muted2, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                    Text(item.createdLabel.ifBlank { "Data não informada" }, color = Muted2, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(item.value.ifBlank { "—" }, color = if (kind == "Recusada" || kind == "Expirada") Muted2 else LimeDark, fontWeight = FontWeight.Black, fontSize = 17.sp, fontFamily = AppFont)
@@ -2092,7 +2113,7 @@ private fun HistoryRideCard(item: DriverHistory, expanded: Boolean, onClick: () 
 
             if (expanded) {
                 Divider(color = Color(0xFFE9EEE6))
-                HistoryDetailLine("Coleta", item.pickup.ifBlank { "Rodrigues Açaí e Cia" }, Lime)
+                HistoryDetailLine("Coleta", item.pickup.ifBlank { "Coleta não informada" }, Lime)
                 HistoryDetailLine("Entrega", item.dropoff.ifBlank { item.neighborhood.ifBlank { "Endereço não informado" } }, Purple2)
                 if (item.paymentMethod.isNotBlank()) HistoryDetailLine("Pagamento", item.paymentMethod, Blue)
                 Text("Registro operacional salvo no histórico. A linha do tempo completa deve ficar no detalhe da corrida quando disponível.", color = Muted2, fontSize = 11.sp, fontFamily = AppFont)
@@ -2440,8 +2461,8 @@ private fun ProfileReferenceScreen(profile: DriverProfile, online: Boolean, onBa
             }
             Spacer(Modifier.height(16.dp))
             AccountDataLine(Icons.Filled.Person, "Telefone", profile.phone.ifBlank { "Não informado" })
-            AccountDataLine(Icons.Filled.Place, "Cidade", "Definida pela operação")
-            AccountDataLine(Icons.Filled.TwoWheeler, "Veículo", "Moto")
+            AccountDataLine(Icons.Filled.Place, "Cidade", profile.city.ifBlank { "Não informado" })
+            AccountDataLine(Icons.Filled.TwoWheeler, "Veículo", profile.vehicle.ifBlank { "Não informado" })
             AccountDataLine(Icons.Filled.Shield, "Status cadastral", if (profile.approved) "Aprovado" else "Pendente")
         }
         StatusInfoCard("Alterações sensíveis", "Telefone e e-mail precisam de aprovação do gestor antes de mudar no cadastro.", Lime)
@@ -2566,7 +2587,6 @@ private fun NotificationsReferenceScreen(notices: List<AppNotice>, onBack: () ->
                 NotificationCard(notice.title, "${notice.createdLabel} • ${notice.message}", color)
             }
         }
-        PrimaryButton("Marcar todas como lidas") { }
     }
 }
 
@@ -2657,7 +2677,7 @@ private fun SettingsReferenceScreen(themeMode: String, onThemeChanged: (String) 
                 ModeButton("Escuro", themeMode == AppSettings.THEME_DARK, Modifier.weight(1f)) { onThemeChanged(AppSettings.THEME_DARK) }
             }
         }
-        StatusInfoCard("Versão do app", "6.7.0 base fiel pronta para o gestor alimentar avisos, banners e estados.", Blue)
+        StatusInfoCard("Versão do app", "6.9.0 arquitetura operacional fiel: sem dado fictício, sem botão morto e pronto para o gestor alimentar.", Blue)
     }
 }
 
@@ -2815,7 +2835,7 @@ private fun SettingsCenterContent(
             SettingButton("Problemas com corrida", "Relatar ocorrência")
         }
         SettingsSection("Sobre") {
-            SettingButton("Versão do app", "6.7.0 todas as telas")
+            SettingButton("Versão do app", "6.9.0 arquitetura operacional fiel")
             SettingButton("Termos e privacidade", "Documentos do app")
         }
     }
@@ -3056,7 +3076,7 @@ private fun MiniStat(label: String, value: String, modifier: Modifier) {
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(label, color = Muted2, fontSize = 12.sp, fontFamily = AppFont)
-            Text(value, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
+            Text(value.ifBlank { "A definir" }, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
         }
     }
 }
@@ -3139,7 +3159,7 @@ private fun StopLine(label: String, value: String, color: Color) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(label, color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.Black)
-            Text(value, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(value.ifBlank { "Não informado" }, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

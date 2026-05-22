@@ -73,11 +73,11 @@ object NotificationHelper {
     fun showUrgent(
         context: Context,
         rideId: String = "sem-id",
-        value: String = "R$ --",
-        distance: String = "-- km",
-        duration: String = "-- min",
-        pickup: String = "Rodrigues Açaí e Cia",
-        dropoff: String = "Endereço liberado após aceite"
+        value: String = "",
+        distance: String = "",
+        duration: String = "",
+        pickup: String = "",
+        dropoff: String = ""
     ) {
         urgentRideNotification(
             context = context,
@@ -121,7 +121,7 @@ object NotificationHelper {
         val notification = NotificationCompat.Builder(context, CHANNEL_URGENT)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Nova corrida urgente disponível")
-            .setContentText("$value • $distance • $duration")
+            .setContentText(listOf(value, distance, duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Toque para abrir a oferta" })
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

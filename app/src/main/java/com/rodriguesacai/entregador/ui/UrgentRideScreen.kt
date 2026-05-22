@@ -88,8 +88,8 @@ fun UrgentRideScreen(
 
                     Spacer(Modifier.height(30.dp))
                     Text("Nova corrida", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Black)
-                    Text(value, color = Lime, fontSize = 58.sp, fontWeight = FontWeight.Black)
-                    Text("$distance • $duration", color = Muted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(value.ifBlank { "A definir" }, color = Lime, fontSize = 58.sp, fontWeight = FontWeight.Black)
+                    Text(listOf(distance, duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Dados da rota serão exibidos quando chegarem" }, color = Muted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(18.dp))
                     Text(
                         "Toque em Ver detalhes para abrir o mapa, conferir a coleta e decidir.",
@@ -107,8 +107,8 @@ fun UrgentRideScreen(
                         .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(34.dp))
                 ) {
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        RouteLine("COLETA", pickup, Lime)
-                        RouteLine("ENTREGA", dropoff.ifBlank { "Bairro da entrega" }, Purple2)
+                        RouteLine("COLETA", pickup.ifBlank { "Coleta não informada" }, Lime)
+                        RouteLine("ENTREGA", dropoff.ifBlank { "Área da entrega não informada" }, Purple2)
                         Button(
                             onClick = { detailsOpen = true },
                             modifier = Modifier.fillMaxWidth().height(62.dp),
@@ -133,7 +133,7 @@ fun UrgentRideScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Detalhes da oferta", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
-                            Text("$value • $distance • $duration", color = Lime, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                            Text(listOf(value, distance, duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Dados da oferta aguardando sincronização" }, color = Lime, fontSize = 16.sp, fontWeight = FontWeight.Black)
                         }
                         Countdown(seconds)
                     }
@@ -141,9 +141,9 @@ fun UrgentRideScreen(
                     Spacer(Modifier.height(14.dp))
                     RealDeliveryMap(
                         title = "Mapa da oferta",
-                        subtitle = "$distance • $duration",
+                        subtitle = listOf(distance, duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Rota aguardando dados" },
                         pickupAddress = pickup,
-                        dropoffAddress = dropoff.ifBlank { "Campo Grande, MS" },
+                        dropoffAddress = dropoff,
                         modifier = Modifier.height(250.dp)
                     )
 
@@ -156,9 +156,9 @@ fun UrgentRideScreen(
                             .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
                     ) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            RouteLine("COLETA", pickup, Lime)
-                            RouteLine("ENTREGA", dropoff.ifBlank { "Bairro da entrega" }, Purple2)
-                            Text("Endereço quase completo e pins no mapa. Confirme antes de aceitar.", color = Muted, fontSize = 12.sp)
+                            RouteLine("COLETA", pickup.ifBlank { "Coleta não informada" }, Lime)
+                            RouteLine("ENTREGA", dropoff.ifBlank { "Área da entrega não informada" }, Purple2)
+                            Text("Confira os dados disponíveis. Se a operação ainda não enviou alguma informação, o app mostra assim que sincronizar.", color = Muted, fontSize = 12.sp)
                         }
                     }
                 }
@@ -212,7 +212,7 @@ private fun RouteLine(label: String, value: String, color: Color) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(label, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Black)
-            Text(value, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(value.ifBlank { "Não informado" }, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

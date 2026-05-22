@@ -16,11 +16,11 @@ class UrgentRideActivity : ComponentActivity() {
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
         val rideId = intent.getStringExtra("rideId") ?: "sem-id"
-        val value = intent.getStringExtra("value") ?: "R$ --"
-        val distance = intent.getStringExtra("distance") ?: "-- km"
-        val duration = intent.getStringExtra("duration") ?: "-- min"
-        val pickup = intent.getStringExtra("pickup") ?: "Rodrigues Açaí e Cia"
-        val dropoff = intent.getStringExtra("dropoff") ?: "Endereço do cliente liberado após aceite"
+        val value = intent.getStringExtra("value").orEmpty()
+        val distance = intent.getStringExtra("distance").orEmpty()
+        val duration = intent.getStringExtra("duration").orEmpty()
+        val pickup = intent.getStringExtra("pickup").orEmpty()
+        val dropoff = intent.getStringExtra("dropoff").orEmpty()
         setContent {
             RodriguesNativeTheme(darkTheme = AppSettings.isDarkTheme(this)) {
                 UrgentRideScreen(

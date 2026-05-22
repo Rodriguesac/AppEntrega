@@ -64,7 +64,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openNavigator(pickup: String, dropoff: String) {
-        val destination = dropoff.ifBlank { pickup }.ifBlank { "Rodrigues Açaí e Cia" }
+        val destination = dropoff.ifBlank { pickup }
+        if (destination.isBlank()) return
         val encoded = Uri.encode(destination)
         val preference = AppSettings.getNavigationApp(this)
 

@@ -17,6 +17,7 @@ import java.util.Locale
 import java.time.Instant
 
 object DriverRepository {
+    private const val APP_VERSION = "6.9.0"
     private const val PREFS = "driver_session"
     private const val KEY_ID = "driver_id"
     private const val KEY_NAME = "driver_name"
@@ -25,6 +26,8 @@ object DriverRepository {
     private const val KEY_COLLECTION = "driver_collection"
     private const val KEY_PIX = "driver_pix"
     private const val KEY_BANK = "driver_bank"
+    private const val KEY_CITY = "driver_city"
+    private const val KEY_VEHICLE = "driver_vehicle"
     private const val KEY_NEEDS_PASSWORD = "driver_needs_password"
 
     private const val REAL_DRIVER_COLLECTION = "entregadores"
@@ -46,6 +49,8 @@ object DriverRepository {
             collectionName = prefs.getString(KEY_COLLECTION, null).orEmpty().ifBlank { REAL_DRIVER_COLLECTION },
             pixKey = prefs.getString(KEY_PIX, null).orEmpty(),
             bankName = prefs.getString(KEY_BANK, null).orEmpty(),
+            city = prefs.getString(KEY_CITY, null).orEmpty(),
+            vehicle = prefs.getString(KEY_VEHICLE, null).orEmpty(),
             needsPasswordSetup = prefs.getBoolean(KEY_NEEDS_PASSWORD, false),
             verified = true,
             approved = true,
@@ -138,7 +143,7 @@ object DriverRepository {
             "senhaCriadaEm" to now,
             "origemCadastro" to "android_native",
             "platform" to "android_native",
-            "appVersion" to "6.8.1",
+            "appVersion" to APP_VERSION,
             "criadoEm" to now,
             "createdAt" to now,
             "atualizadoEm" to now,
@@ -181,7 +186,7 @@ object DriverRepository {
                 "passwordUpdatedAt" to now,
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "6.8.1"
+                "appVersion" to APP_VERSION
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -221,7 +226,7 @@ object DriverRepository {
                 "recebimentoStatus" to "PENDENTE_CONFERENCIA",
                 "atualizadoEm" to now,
                 "updatedAt" to now,
-                "appVersion" to "6.8.1"
+                "appVersion" to APP_VERSION
             ),
             SetOptions.merge()
         ).addOnSuccessListener {
@@ -260,7 +265,7 @@ object DriverRepository {
                 "status" to "PENDENTE",
                 "prioridade" to "NORMAL",
                 "origem" to "android_native",
-                "appVersion" to "6.8.1",
+                "appVersion" to APP_VERSION,
                 "criadoEm" to now,
                 "createdAt" to now
             )
@@ -354,6 +359,8 @@ object DriverRepository {
             .putString(KEY_COLLECTION, profile.collectionName)
             .putString(KEY_PIX, profile.pixKey)
             .putString(KEY_BANK, profile.bankName)
+            .putString(KEY_CITY, profile.city)
+            .putString(KEY_VEHICLE, profile.vehicle)
             .putBoolean(KEY_NEEDS_PASSWORD, profile.needsPasswordSetup)
             .apply()
 
@@ -362,7 +369,7 @@ object DriverRepository {
                 "ultimoLoginEm" to Timestamp.now(),
                 "lastLoginAt" to Timestamp.now(),
                 "platform" to "android_native",
-                "appVersion" to "6.8.1"
+                "appVersion" to APP_VERSION
             ),
             SetOptions.merge()
         )
@@ -384,7 +391,7 @@ object DriverRepository {
             "atualizadoEm" to Timestamp.now(),
             "updatedAt" to Timestamp.now(),
             "platform" to "android_native",
-            "appVersion" to "6.8.1"
+            "appVersion" to APP_VERSION
         )
         db.collection(profile.collectionName).document(profile.id).set(payload, SetOptions.merge())
         if (online) saveMessagingToken(context)
@@ -593,13 +600,17 @@ object DriverRepository {
                             val displayCode = doc.anyString("codigoPedido", "numeroPedido", "orderCode", "pedidoCodigo")
                                 .ifBlank { rawRideId.takeLast(4).uppercase(Locale.ROOT) }
                             val date = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()
+                            val hasValue = doc.hasAnyValue(
+                                "valorRota", "valor", "valueNumber", "repasseEntregador", "valorRepasseMotoboy",
+                                "taxaEntrega", "valorEntrega", "preco", "total", "valorTotal"
+                            )
                             DriverHistory(
                                 id = doc.id,
                                 rideId = displayCode,
                                 action = action,
-                                value = formatCurrency(valueNumberFromDoc(doc)),
+                                value = if (hasValue) formatCurrency(valueNumberFromDoc(doc)) else "",
                                 createdAtMillis = date?.time ?: 0L,
-                                createdLabel = date?.formatHistoryLabel().orEmpty().ifBlank { "Agora" },
+                                createdLabel = date?.formatHistoryLabel().orEmpty().ifBlank { "Data não informada" },
                                 pickup = doc.anyString("loja.nome", "storeName", "nomeLoja", "coleta", "pickup", "pickupAddress", "enderecoColeta", "origem"),
                                 dropoff = doc.anyString("cliente.endereco", "enderecoEntrega", "deliveryAddress", "dropoff", "dropoffAddress", "destino"),
                                 neighborhood = doc.anyString("bairro", "bairroEntrega", "cliente.bairro", "deliveryNeighborhood", "regiaoEntrega"),
@@ -627,8 +638,8 @@ object DriverRepository {
     ): ListenerRegistration? {
         val profile = currentSession(context) ?: return null
 
-        var historyBase = DriverStats(score = 100)
-        var walletDocStats = DriverStats(score = 100)
+        var historyBase = DriverStats()
+        var walletDocStats = DriverStats()
         var payoutRows: List<DriverPayout> = emptyList()
 
         fun emit() {
@@ -657,16 +668,33 @@ object DriverRepository {
                     onError(err.message ?: "Erro ao ouvir ganhos.")
                     return@addSnapshotListener
                 }
-                val finished = snap?.documents.orEmpty()
+                val allForDriver = snap?.documents.orEmpty()
                     .filter { doc -> runCatching { doc.matchesDriverId(profile.id) }.getOrDefault(false) }
-                    .filter { doc -> runCatching { doc.anyString("tipo", "status", "action").upperOrTrim() in FINAL_HISTORY_STATUSES }.getOrDefault(false) }
-                val total = finished.sumOf { doc -> runCatching { valueNumberFromDoc(doc) }.getOrDefault(0.0) }
+                val todayDocs = allForDriver.filter { doc ->
+                    val millis = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()?.time
+                    millis != null && millis.isTodayMillis()
+                }
+                val finishedToday = todayDocs.filter { doc ->
+                    runCatching { doc.anyString("tipo", "status", "action", "statusAtual").upperOrTrim() in FINAL_HISTORY_STATUSES }.getOrDefault(false)
+                }
+                val finishedWeek = allForDriver.filter { doc ->
+                    val statusOk = runCatching { doc.anyString("tipo", "status", "action", "statusAtual").upperOrTrim() in FINAL_HISTORY_STATUSES }.getOrDefault(false)
+                    val millis = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()?.time
+                    statusOk && millis != null && millis.isWithinLastDays(7)
+                }
+                val finishedMonth = allForDriver.filter { doc ->
+                    val statusOk = runCatching { doc.anyString("tipo", "status", "action", "statusAtual").upperOrTrim() in FINAL_HISTORY_STATUSES }.getOrDefault(false)
+                    val millis = doc.anyTimestamp("statusAtualizadoEm", "atualizadoEm", "updatedAt", "criadoEm", "createdAt")?.toDate()?.time
+                    statusOk && millis != null && millis.isWithinLastDays(31)
+                }
                 historyBase = DriverStats(
-                    totalToday = total,
-                    totalWeek = total,
-                    totalMonth = total,
-                    finishedCount = finished.size,
-                    score = 100
+                    totalToday = finishedToday.sumOf { doc -> runCatching { valueNumberFromDoc(doc) }.getOrDefault(0.0) },
+                    totalWeek = finishedWeek.sumOf { doc -> runCatching { valueNumberFromDoc(doc) }.getOrDefault(0.0) },
+                    totalMonth = finishedMonth.sumOf { doc -> runCatching { valueNumberFromDoc(doc) }.getOrDefault(0.0) },
+                    finishedCount = finishedToday.size,
+                    ridesTodayCount = todayDocs.size,
+                    finishedTodayCount = finishedToday.size,
+                    score = 0
                 )
                 emit()
             }
@@ -677,7 +705,7 @@ object DriverRepository {
                     onError(err.message ?: "Erro ao ouvir carteira do entregador.")
                     return@addSnapshotListener
                 }
-                walletDocStats = doc?.toWalletStats() ?: DriverStats(score = 100)
+                walletDocStats = doc?.toWalletStats() ?: DriverStats()
                 emit()
             }
 
@@ -981,7 +1009,7 @@ object DriverRepository {
                 "intervaloSeg" to intervaloSeg,
                 "atualizadoEm" to now
             ),
-            "localizacaoOrigem" to "android_native_v6_0_0"
+            "localizacaoOrigem" to "android_native_v6_9_0"
         )
 
         db.collection(profile.collectionName).document(profile.id)
@@ -1068,7 +1096,7 @@ object DriverRepository {
                 "updatedAt" to now,
                 "criadoEm" to now,
                 "createdAt" to now,
-                "origem" to "android_native_v6_0_0",
+                "origem" to "android_native_v6_9_0",
                 "eventosStatus" to FieldValue.arrayUnion(
                     mapOf(
                         "status" to action,
@@ -1133,7 +1161,7 @@ object DriverRepository {
                 "carteira.proximoRepasseDescricao",
                 "financeiro.proximoRepasseDescricao",
                 "nextPayoutDescription"
-            ).ifBlank { "Estimativa será informada pela operação." },
+            ).ifBlank { "A definir" },
             pixKey = anyString("chavePix", "pix", "pixKey", "carteira.pixChave", "financeiro.pixChave"),
             pixVerificada = anyBoolean("pixVerificada", "carteira.pixVerificada", "financeiro.pixVerificada") ?: false,
             bankName = anyString("banco", "bank", "bankName", "carteira.banco", "financeiro.banco")
@@ -1279,6 +1307,8 @@ object DriverRepository {
             collectionName = collectionName,
             pixKey = anyString("chavePix", "pix", "pixKey", "chavePIX"),
             bankName = anyString("banco", "bank", "bankName", "instituicao"),
+            city = anyString("cidade", "city", "municipio", "município"),
+            vehicle = anyString("veiculo", "veículo", "modalidade", "tipoVeiculo", "tipoVeículo"),
             verified = approved,
             approved = approved,
             blocked = blocked,
@@ -1417,6 +1447,8 @@ data class DriverProfile(
     val collectionName: String = "entregadores",
     val pixKey: String = "",
     val bankName: String = "",
+    val city: String = "",
+    val vehicle: String = "",
     val needsPasswordSetup: Boolean = false,
     val verified: Boolean = true,
     val approved: Boolean = true,
@@ -1468,7 +1500,9 @@ data class DriverStats(
     val totalWeek: Double = 0.0,
     val totalMonth: Double = 0.0,
     val finishedCount: Int = 0,
-    val score: Int = 100,
+    val ridesTodayCount: Int = 0,
+    val finishedTodayCount: Int = 0,
+    val score: Int = 0,
     val saldoDisponivel: Double? = null,
     val saldoPendente: Double? = null,
     val totalAReceber: Double? = null,
@@ -1840,8 +1874,8 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val number = driverPayoutValue()
     val clientTotal = clientTotalValue()
     val machineFee = machineFeeValue()
-    val paymentMethod = anyString("formaPagamento", "pagamento", "paymentMethod", "metodoPagamento").ifBlank { "Não informado" }
-    val receivedBy = anyString("recebidoPor", "quemRecebe", "recebedor", "paymentReceiver").ifBlank { "Loja/App" }
+    val paymentMethod = anyString("formaPagamento", "pagamento", "paymentMethod", "metodoPagamento")
+    val receivedBy = anyString("recebidoPor", "quemRecebe", "recebedor", "paymentReceiver")
     val amountToCollect = anyDouble("valorReceberCliente", "valorCobrarCliente", "trocoValorCobrar", "cobrarDoCliente") ?: clientTotal
     val storeReturn = if (receivedBy.upperOrTrim() in setOf("ENTREGADOR", "MOTOBOY", "DRIVER")) (amountToCollect - machineFee - number).coerceAtLeast(0.0) else 0.0
     val assigned = anyString(
@@ -1855,7 +1889,6 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val rejected = anyStringList("rejeitados", "rejeitadoPor", "rejeitadosIds", "entregadoresRejeitaram", "rejectedDriverIds")
     val expired = anyStringList("expiredDriverIds", "expiradoPara", "expirados")
     val pickup = anyString("lojaEndereco", "pickup", "pickupAddress", "enderecoLoja", "nomeLoja", "lojaNome")
-        .ifBlank { "Rodrigues Acai e Cia" }
     val dropoff = anyAddressString()
     val km = anyDouble("kmTotal", "distanciaKm", "distanciaTotal", "distancia", "calculo.kmTotalEstimado", "calculo.kmTotal", "calculo.distanciaKm") ?: 0.0
     val minutes = anyDouble("tempoTotalMin", "tempoMin", "tempoEstimado", "tempo", "calculo.tempoTotalMin", "calculo.tempoMin") ?: 0.0
@@ -1871,17 +1904,17 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
         rawStatus = rawStatus,
         value = DriverRepository.formatCurrency(number),
         valueNumber = number,
-        distance = if (km > 0.0) "${String.format(Locale("pt", "BR"), "%.1f", km)} km" else anyString("distance").ifBlank { "-- km" },
-        duration = if (minutes > 0.0) "${minutes.toInt()} min" else anyString("duration", "estimatedTime").ifBlank { "-- min" },
+        distance = if (km > 0.0) "${String.format(Locale("pt", "BR"), "%.1f", km)} km" else anyString("distance"),
+        duration = if (minutes > 0.0) "${minutes.toInt()} min" else anyString("duration", "estimatedTime"),
         pickup = pickup,
         dropoff = dropoff,
-        neighborhood = anyString("bairro", "bairroEntrega", "regiao", "neighborhood").ifBlank { "Bairro não informado" },
+        neighborhood = anyString("bairro", "bairroEntrega", "regiao", "neighborhood"),
         assignedDriverId = assigned,
         targetDriverId = target,
         broadcast = anyBoolean("broadcast", "paraTodos", "ofertaParaTodos") ?: false,
-        customerName = anyString("customerName", "clientName", "clienteNome", "nomeCliente", "nome").ifBlank { "Cliente" },
+        customerName = anyString("customerName", "clientName", "clienteNome", "nomeCliente", "nome"),
         orderCode = anyString("orderCode", "orderId", "numeroPedido", "codigoPedido").ifBlank { id.takeLast(6).uppercase() },
-        stops = (anyDouble("stops", "paradas", "quantidadePedidos") ?: 2.0).toInt().coerceAtLeast(1),
+        stops = (anyDouble("stops", "paradas", "quantidadePedidos") ?: 1.0).toInt().coerceAtLeast(1),
         rejectedDriverIds = rejected,
         expiredDriverIds = expired,
         pickupLat = pickupLat,
@@ -2042,8 +2075,26 @@ private fun DocumentSnapshot.anyAddressString(): String {
         if (parts.isNotEmpty()) return parts.joinToString(", ")
     }
     val bairro = anyString("bairro", "regiao")
-    return if (bairro.isNotBlank()) "Regiao: $bairro" else "Endereco do cliente liberado apos aceite"
+    return if (bairro.isNotBlank()) "Região: $bairro" else ""
 }
+
+private fun DocumentSnapshot.hasAnyValue(vararg keys: String): Boolean {
+    return keys.any { key -> getDeep(key) != null }
+}
+
+private fun Long.isTodayMillis(): Boolean {
+    val now = Calendar.getInstance()
+    val date = Calendar.getInstance().apply { timeInMillis = this@isTodayMillis }
+    return now.get(Calendar.YEAR) == date.get(Calendar.YEAR) &&
+        now.get(Calendar.DAY_OF_YEAR) == date.get(Calendar.DAY_OF_YEAR)
+}
+
+private fun Long.isWithinLastDays(days: Int): Boolean {
+    val now = System.currentTimeMillis()
+    val diff = now - this
+    return diff >= 0 && diff <= days * 24L * 60L * 60L * 1000L
+}
+
 
 private fun String.upperOrTrim(): String = trim().uppercase(Locale.ROOT)
 
