@@ -794,7 +794,6 @@ private fun HomeContent(
             activeRide != null -> ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
             pendingRide != null && online -> IncomingRideCard(pendingRide, onAccept, onReject, onExpire)
             operational.kind == AvailabilityKind.Restricao -> RestrictionCard(operational)
-            operational.kind == AvailabilityKind.Indisponivel -> OfflineCard(operational)
         }
         Spacer(Modifier.height(10.dp))
     }
@@ -1123,21 +1122,21 @@ private fun QuickActionTile(title: String, subtitle: String, icon: ImageVector, 
             .clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFFE8F8EC)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1)
+                Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1)
                 Text(subtitle, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -1251,35 +1250,49 @@ private fun EarningsStrip(stats: DriverStats, hideValues: Boolean) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(Modifier.weight(1.35f)) {
-                Text("Ganhos de hoje", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+            Column(
+                Modifier
+                    .weight(1.25f)
+                    .padding(end = 14.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Ganhos de hoje", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1)
+                Spacer(Modifier.height(6.dp))
                 Text(
                     if (hideValues) "R$ •••••" else DriverRepository.formatCurrency(stats.totalToday),
                     color = Ink,
-                    fontSize = 25.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontFamily = AppFont
                 )
             }
-            Divider(Modifier.height(44.dp).width(1.dp), color = Color(0xFFE5EAE4))
-            Column(Modifier.weight(.75f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stats.ridesTodayCount.toString(), color = LimeDark, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text("Corridas", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
-            }
-            Divider(Modifier.height(44.dp).width(1.dp), color = Color(0xFFE5EAE4))
-            Column(Modifier.weight(.75f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stats.finishedTodayCount.toString(), color = LimeDark, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text("Finalizadas", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+            Divider(Modifier.height(58.dp).width(1.dp), color = Color(0xFFE5EAE4))
+            Column(
+                Modifier
+                    .weight(.92f)
+                    .padding(start = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                DailyCounterLine(value = stats.ridesTodayCount, label = "Corridas")
+                Divider(color = Color(0xFFE5EAE4), thickness = 1.dp)
+                DailyCounterLine(value = stats.finishedTodayCount, label = "Finalizadas")
             }
         }
     }
 }
 
+@Composable
+private fun DailyCounterLine(value: Int, label: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(value.toString(), color = LimeDark, fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, modifier = Modifier.width(38.dp), textAlign = TextAlign.Center)
+        Text(label, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
 
 @Composable
 private fun OfflineCard(status: OperationalStatus) {
@@ -1633,12 +1646,32 @@ private fun RidesEmptyGuide(title: String, message: String) {
 private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history: List<DriverHistory>, onEditBank: () -> Unit) {
     val context = LocalContext.current
     var visible by remember { mutableStateOf(!AppSettings.getHideValues(context)) }
-    val availableBalance = remember(stats) { stats.saldoDisponivel ?: stats.totalToday }
-    val pendingBalance = remember(stats) { stats.saldoPendente ?: 0.0 }
-    val totalToReceive = remember(stats) { stats.totalAReceber ?: (availableBalance + pendingBalance) }
+    val receivedByDriver = stats.recebidoPeloEntregador
+        ?: listOf(stats.dinheiroRecebido, stats.cartaoRecebido, stats.pixRecebido).filterNotNull().sum().takeIf { it > 0.0 }
+        ?: 0.0
+    val driverFee = stats.taxaMotoboy ?: stats.totalToday
+    val cardFees = stats.taxasMaquininha ?: 0.0
+    val amountToRepay = stats.valorARepassar ?: 0.0
+    val amountToReceive = stats.valorAReceber ?: stats.totalAReceber ?: 0.0
+    val settlementMode = when {
+        amountToRepay > 0.0 -> "repay"
+        amountToReceive > 0.0 -> "receive"
+        else -> "ok"
+    }
+    val settlementTitle = when (settlementMode) {
+        "repay" -> "Você deve repassar"
+        "receive" -> "Você tem a receber"
+        else -> "Tudo certo por enquanto"
+    }
+    val settlementValue = when (settlementMode) {
+        "repay" -> amountToRepay
+        "receive" -> amountToReceive
+        else -> 0.0
+    }
     val payoutRows = remember(stats) { stats.payoutRows.take(3) }
     val pixKey = remember(stats, profile) { stats.pixKey.ifBlank { profile.pixKey } }
     val bankName = remember(stats, profile) { stats.bankName.ifBlank { profile.bankName } }
+    var showWalletInfo by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -1647,11 +1680,18 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        WalletTopBar()
+        WalletTopBar(onInfoClick = { showWalletInfo = !showWalletInfo })
 
-        WalletBalanceHero(
-            value = DriverRepository.formatCurrency(availableBalance),
+        if (showWalletInfo) {
+            WalletInfoCard()
+        }
+
+        WalletSettlementHero(
+            label = "Acerto de hoje",
+            title = settlementTitle,
+            value = DriverRepository.formatCurrency(settlementValue),
             visible = visible,
+            mode = settlementMode,
             onToggle = {
                 visible = !visible
                 AppSettings.setHideValues(context, !visible)
@@ -1660,18 +1700,39 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             WalletSmallAmountCard(
-                label = "Saldo pendente",
-                value = DriverRepository.formatCurrency(pendingBalance),
+                label = "Recebido por você",
+                value = DriverRepository.formatCurrency(receivedByDriver),
                 visible = visible,
                 modifier = Modifier.weight(1f)
             )
             WalletSmallAmountCard(
-                label = "Total a receber",
-                value = DriverRepository.formatCurrency(totalToReceive),
+                label = "Sua taxa",
+                value = DriverRepository.formatCurrency(driverFee),
                 visible = visible,
                 modifier = Modifier.weight(1f)
             )
         }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            WalletSmallAmountCard(
+                label = "Taxas de cartão",
+                value = DriverRepository.formatCurrency(cardFees),
+                visible = visible,
+                modifier = Modifier.weight(1f)
+            )
+            WalletSmallAmountCard(
+                label = "A repassar",
+                value = DriverRepository.formatCurrency(amountToRepay),
+                visible = visible,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        PaymentBreakdownCard(
+            cash = stats.dinheiroRecebido ?: 0.0,
+            card = stats.cartaoRecebido ?: 0.0,
+            pix = stats.pixRecebido ?: 0.0,
+            visible = visible
+        )
 
         NextPayoutCard(
             title = stats.proximoRepasseLabel,
@@ -1700,7 +1761,7 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
         }
 
         Text(
-            "Acesse Mais > Pix/banco para editar chave Pix, banco e dados de recebimento.",
+            "Na finalização da entrega, o app deve registrar se o cliente pagou em dinheiro, Pix ou maquininha. O gestor alimenta taxas e acertos; esta tela já fica pronta para ouvir esses dados.",
             color = Muted,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -1712,7 +1773,7 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
 }
 
 @Composable
-private fun WalletTopBar() {
+private fun WalletTopBar(onInfoClick: () -> Unit) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Text(
             "Carteira",
@@ -1728,7 +1789,8 @@ private fun WalletTopBar() {
                 .size(38.dp)
                 .clip(CircleShape)
                 .background(Color.White)
-                .border(1.dp, BorderSoft, CircleShape),
+                .border(1.dp, BorderSoft, CircleShape)
+                .clickable { onInfoClick() },
             contentAlignment = Alignment.Center
         ) {
             Text("i", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
@@ -1737,22 +1799,45 @@ private fun WalletTopBar() {
 }
 
 @Composable
-private fun WalletBalanceHero(value: String, visible: Boolean, onToggle: () -> Unit) {
+private fun WalletInfoCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1FAF1)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Como funciona o acerto", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+            Text("Dinheiro recebido pelo motoboy não é todo do motoboy. O app separa sua taxa, taxas de maquininha e valor a repassar para a operação.", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+            Text("Exemplo: pedido R$ 100, taxa do entregador R$ 6 e débito com 2% de taxa = R$ 92 a repassar.", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+        }
+    }
+}
+
+@Composable
+private fun WalletSettlementHero(label: String, title: String, value: String, visible: Boolean, mode: String, onToggle: () -> Unit) {
+    val colors = when (mode) {
+        "repay" -> listOf(Color(0xFF7A3B00), Color(0xFFFF8A00))
+        "receive" -> listOf(Color(0xFF005D25), Color(0xFF008D35))
+        else -> listOf(Color(0xFF005D25), Color(0xFF008D35))
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = LimeDark),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Box(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF005D25), Color(0xFF008D35))))) {
+        Box(Modifier.background(Brush.horizontalGradient(colors))) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Saldo disponível", color = Color.White.copy(alpha = .90f), fontSize = WalletType.bodyStrong, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+                    Text(label, color = Color.White.copy(alpha = .90f), fontSize = WalletType.bodyStrong, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+                    Spacer(Modifier.height(4.dp))
+                    Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (visible) value else "R$ •••••",
                         color = Color.White,
-                        fontSize = WalletType.heroValue,
+                        fontSize = 34.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = AppFont,
                         maxLines = 1,
@@ -1782,18 +1867,18 @@ private fun WalletBalanceHero(value: String, visible: Boolean, onToggle: () -> U
 @Composable
 private fun WalletSmallAmountCard(label: String, value: String, visible: Boolean, modifier: Modifier = Modifier) {
     Card(
-        modifier = modifier.height(88.dp),
+        modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.Center) {
-            Text(label, color = Muted, fontSize = WalletType.label, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp), verticalArrangement = Arrangement.Center) {
+            Text(label, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
             Text(
                 if (visible) value else "R$ •••••",
                 color = Ink,
-                fontSize = WalletType.cardValue,
+                fontSize = 19.sp,
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = AppFont,
                 maxLines = 1,
@@ -1804,7 +1889,40 @@ private fun WalletSmallAmountCard(label: String, value: String, visible: Boolean
 }
 
 @Composable
+private fun PaymentBreakdownCard(cash: Double, card: Double, pix: Double, visible: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Formas recebidas", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+            WalletBreakdownLine("Dinheiro", DriverRepository.formatCurrency(cash), visible)
+            WalletBreakdownLine("Maquininha/cartão", DriverRepository.formatCurrency(card), visible)
+            WalletBreakdownLine("Pix", DriverRepository.formatCurrency(pix), visible)
+            Text("Se o pagamento for maquininha, a taxa cadastrada no gestor desconta automaticamente do acerto.", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+        }
+    }
+}
+
+@Composable
+private fun WalletBreakdownLine(label: String, value: String, visible: Boolean) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont, modifier = Modifier.weight(1f))
+        Text(if (visible) value else "R$ •••••", color = Ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+    }
+}
+
+@Composable
 private fun NextPayoutCard(title: String, description: String) {
+    val cleanTitle = title.ifBlank { "A definir" }
+    val cleanDescription = when {
+        description.isBlank() -> "Aguardando programação do gestor"
+        description == cleanTitle -> "Aguardando programação do gestor"
+        cleanTitle == "A definir" && description == "A definir" -> "Aguardando programação do gestor"
+        else -> description
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -1817,9 +1935,9 @@ private fun NextPayoutCard(title: String, description: String) {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Próximo repasse", color = LimeDark, fontSize = WalletType.label, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
-                Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
-                Text(description, color = Muted, fontSize = WalletType.body, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+                Text("Próximo acerto", color = LimeDark, fontSize = WalletType.label, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                Text(cleanTitle, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+                Text(cleanDescription, color = Muted, fontSize = WalletType.body, fontWeight = FontWeight.Medium, fontFamily = AppFont)
             }
             Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted2)
         }
@@ -1871,7 +1989,7 @@ private fun LastPayoutsSection(rows: List<DriverPayout>, visible: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Últimos repasses", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont, modifier = Modifier.weight(1f))
-            Text("Ver todos", color = Lime, fontSize = WalletType.label, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Text("Histórico", color = Muted, fontSize = WalletType.label, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -2071,7 +2189,7 @@ private fun HistoryRideCard(item: DriverHistory, expanded: Boolean, onClick: () 
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(50.dp).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
-                    Icon(item.historyIcon(), contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+                    Icon(item.historyIcon(), contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -2418,7 +2536,7 @@ private fun MoreHubScreen(
         ) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-                    Icon(if (permissionStatus.ready) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline, contentDescription = null, tint = if (permissionStatus.ready) Lime else Warning, modifier = Modifier.size(24.dp))
+                    Icon(if (permissionStatus.ready) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline, contentDescription = null, tint = if (permissionStatus.ready) Lime else Warning, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -2677,7 +2795,7 @@ private fun SettingsReferenceScreen(themeMode: String, onThemeChanged: (String) 
                 ModeButton("Escuro", themeMode == AppSettings.THEME_DARK, Modifier.weight(1f)) { onThemeChanged(AppSettings.THEME_DARK) }
             }
         }
-        StatusInfoCard("Versão do app", "6.9.0 arquitetura operacional fiel: sem dado fictício, sem botão morto e pronto para o gestor alimentar.", Blue)
+        StatusInfoCard("Versão do app", "6.10.0 correções A+B: Home fiel, acerto financeiro e carteira preparada para repasse inteligente.", Blue)
     }
 }
 
@@ -2716,7 +2834,7 @@ private fun MoreMenuTile(title: String, subtitle: String, icon: ImageVector, mod
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFFEAF8EE)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -2756,7 +2874,7 @@ private fun NotificationCard(title: String, subtitle: String, color: Color) {
     Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().border(1.dp, BorderSoft, RoundedCornerShape(22.dp))) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(50.dp).clip(CircleShape).background(color.copy(alpha = .10f)), contentAlignment = Alignment.Center) {
-                Icon(if (color == Warning) Icons.Filled.ErrorOutline else Icons.Filled.Notifications, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+                Icon(if (color == Warning) Icons.Filled.ErrorOutline else Icons.Filled.Notifications, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -2835,7 +2953,7 @@ private fun SettingsCenterContent(
             SettingButton("Problemas com corrida", "Relatar ocorrência")
         }
         SettingsSection("Sobre") {
-            SettingButton("Versão do app", "6.9.0 arquitetura operacional fiel")
+            SettingButton("Versão do app", "6.10.0 correções A+B")
             SettingButton("Termos e privacidade", "Documentos do app")
         }
     }
@@ -3192,7 +3310,7 @@ private fun InfoLine(label: String, value: String) {
 
 private fun readOperationalStatus(context: Context, profile: DriverProfile, online: Boolean, activeRide: DriverRide?): OperationalStatus {
     if (activeRide != null) {
-        return OperationalStatus(AvailabilityKind.EmEntrega, "Em entrega", "Corrida em andamento", Purple, Ink, false)
+        return OperationalStatus(AvailabilityKind.EmEntrega, "Em entrega", "Corrida em andamento", Lime, Color.White, false)
     }
     if (profile.blocked) {
         return OperationalStatus(AvailabilityKind.Restricao, "Restrição", "Conta bloqueada", Danger, Color.White, false)
@@ -3227,10 +3345,10 @@ private fun readOperationalStatus(context: Context, profile: DriverProfile, onli
     }
 
     if (!online) {
-        return OperationalStatus(AvailabilityKind.Indisponivel, "Indisponível", "Toque para ficar disponível", Color(0xFF232129), Ink, true)
+        return OperationalStatus(AvailabilityKind.Indisponivel, "Indisponível", "Toque para ficar disponível", Color(0xFF232129), Color.White, true)
     }
 
-    return OperationalStatus(AvailabilityKind.Disponivel, "Disponível", "Disponível para receber pedidos", Lime, Color(0xFF10200A), true)
+    return OperationalStatus(AvailabilityKind.Disponivel, "Disponível", "Disponível para receber pedidos", Lime, Color.White, true)
 }
 
 private fun Context.batteryLevelPercent(): Int {
@@ -3311,8 +3429,7 @@ private fun String.statusLabel(): String = when {
 private fun String.shortName(): String {
     val parts = trim().split(" ").filter { it.isNotBlank() }
     return when {
-        parts.isEmpty() -> "Entregador"
-        parts.size == 1 -> parts.first()
-        else -> "${parts.first()} ${parts.last().take(1)}."
+        parts.isEmpty() -> "entregador"
+        else -> parts.first()
     }
 }

@@ -17,7 +17,7 @@ import java.util.Locale
 import java.time.Instant
 
 object DriverRepository {
-    private const val APP_VERSION = "6.9.0"
+    private const val APP_VERSION = "6.10.0"
     private const val PREFS = "driver_session"
     private const val KEY_ID = "driver_id"
     private const val KEY_NAME = "driver_name"
@@ -651,6 +651,14 @@ object DriverRepository {
                     saldoDisponivel = walletAvailable,
                     saldoPendente = walletPending,
                     totalAReceber = walletTotal,
+                    recebidoPeloEntregador = walletDocStats.recebidoPeloEntregador,
+                    taxaMotoboy = walletDocStats.taxaMotoboy,
+                    taxasMaquininha = walletDocStats.taxasMaquininha,
+                    valorARepassar = walletDocStats.valorARepassar,
+                    valorAReceber = walletDocStats.valorAReceber,
+                    dinheiroRecebido = walletDocStats.dinheiroRecebido,
+                    cartaoRecebido = walletDocStats.cartaoRecebido,
+                    pixRecebido = walletDocStats.pixRecebido,
                     proximoRepasseLabel = walletDocStats.proximoRepasseLabel,
                     proximoRepasseDescricao = walletDocStats.proximoRepasseDescricao,
                     pixKey = walletDocStats.pixKey.ifBlank { profile.pixKey },
@@ -913,6 +921,11 @@ object DriverRepository {
                     fields["repasseEntregadorConfirmado"] = ride?.valueNumber ?: 0.0
                     fields["valorRepasseMotoboy"] = ride?.valueNumber ?: 0.0
                     fields["financeiroConferidoPeloApp"] = true
+                    fields["acerto.origem"] = "APP_ENTREGADOR"
+                    fields["acerto.status"] = "AGUARDANDO_CONFERENCIA"
+                    fields["acerto.taxaMotoboy"] = ride?.valueNumber ?: 0.0
+                    fields["acerto.precisaInformarPagamento"] = ride?.paymentMethod.isNullOrBlank()
+                    fields["financeiro.precisaConferencia"] = true
                 }
             }
             doc.reference.set(fields, SetOptions.merge())
@@ -1009,7 +1022,7 @@ object DriverRepository {
                 "intervaloSeg" to intervaloSeg,
                 "atualizadoEm" to now
             ),
-            "localizacaoOrigem" to "android_native_v6_9_0"
+            "localizacaoOrigem" to "android_native_v6_10_0"
         )
 
         db.collection(profile.collectionName).document(profile.id)
@@ -1096,7 +1109,7 @@ object DriverRepository {
                 "updatedAt" to now,
                 "criadoEm" to now,
                 "createdAt" to now,
-                "origem" to "android_native_v6_9_0",
+                "origem" to "android_native_v6_10_0",
                 "eventosStatus" to FieldValue.arrayUnion(
                     mapOf(
                         "status" to action,
@@ -1133,6 +1146,53 @@ object DriverRepository {
             "wallet.totalToReceive",
             "payout.totalToReceive"
         )
+        val recebidoPeloEntregador = anyDouble(
+            "acerto.recebidoPeloEntregador",
+            "financeiro.recebidoPeloEntregador",
+            "carteira.recebidoPeloEntregador",
+            "recebidoPeloEntregador",
+            "totalRecebidoMotoboy",
+            "valorRecebidoMotoboy",
+            "recebidoMotoboy"
+        )
+        val taxaMotoboy = anyDouble(
+            "acerto.taxaMotoboy",
+            "financeiro.taxaMotoboy",
+            "carteira.taxaMotoboy",
+            "taxaMotoboy",
+            "valorMotoboy",
+            "ganhoMotoboy",
+            "repasseEntregador"
+        )
+        val taxasMaquininha = anyDouble(
+            "acerto.taxasMaquininha",
+            "financeiro.taxasMaquininha",
+            "carteira.taxasMaquininha",
+            "taxasMaquininha",
+            "taxaMaquininha",
+            "descontoMaquininha"
+        )
+        val valorARepassar = anyDouble(
+            "acerto.valorARepassar",
+            "financeiro.valorARepassar",
+            "carteira.valorARepassar",
+            "valorARepassar",
+            "deveRepassar",
+            "repasseParaLoja",
+            "repasseSistema",
+            "valorLojaSistema"
+        )
+        val valorAReceber = anyDouble(
+            "acerto.valorAReceber",
+            "financeiro.valorAReceber",
+            "carteira.valorAReceber",
+            "valorAReceber",
+            "temAReceber",
+            "receberMotoboy"
+        )
+        val dinheiroRecebido = anyDouble("acerto.dinheiro", "financeiro.dinheiro", "carteira.dinheiro", "dinheiroRecebido", "recebidoDinheiro")
+        val cartaoRecebido = anyDouble("acerto.cartao", "financeiro.cartao", "carteira.cartao", "cartaoRecebido", "maquininhaRecebido", "recebidoCartao")
+        val pixRecebido = anyDouble("acerto.pix", "financeiro.pix", "carteira.pixRecebido", "pixRecebido", "recebidoPix")
         val nextMillis = anyTimestamp(
             "proximoRepasseData",
             "carteira.proximoRepasseData",
@@ -1151,6 +1211,14 @@ object DriverRepository {
             saldoDisponivel = available,
             saldoPendente = pending,
             totalAReceber = totalToReceive,
+            recebidoPeloEntregador = recebidoPeloEntregador,
+            taxaMotoboy = taxaMotoboy,
+            taxasMaquininha = taxasMaquininha,
+            valorARepassar = valorARepassar,
+            valorAReceber = valorAReceber,
+            dinheiroRecebido = dinheiroRecebido,
+            cartaoRecebido = cartaoRecebido,
+            pixRecebido = pixRecebido,
             proximoRepasseLabel = nextMillis?.let { Date(it).formatHistoryLabel() } ?: anyString(
                 "proximoRepasseLabel",
                 "carteira.proximoRepasseLabel",
@@ -1506,6 +1574,14 @@ data class DriverStats(
     val saldoDisponivel: Double? = null,
     val saldoPendente: Double? = null,
     val totalAReceber: Double? = null,
+    val recebidoPeloEntregador: Double? = null,
+    val taxaMotoboy: Double? = null,
+    val taxasMaquininha: Double? = null,
+    val valorARepassar: Double? = null,
+    val valorAReceber: Double? = null,
+    val dinheiroRecebido: Double? = null,
+    val cartaoRecebido: Double? = null,
+    val pixRecebido: Double? = null,
     val proximoRepasseLabel: String = "A definir",
     val proximoRepasseDescricao: String = "Estimativa será informada pela operação.",
     val pixKey: String = "",
