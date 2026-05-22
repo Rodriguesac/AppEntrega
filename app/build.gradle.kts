@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 681
-        versionName = "6.8.1-carteira-gestor"
+        versionCode = 682
+        versionName = "6.8.2-tipografia-fiel"
     }
 
     buildFeatures { compose = true }

@@ -15,8 +15,10 @@ object RodriguesFonts {
 
     val Montserrat: FontFamily = FontFamily(
         Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.Normal),
+        Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.Medium),
         Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.SemiBold),
         Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.Bold),
+        Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.ExtraBold),
         Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.Black)
     )
 }

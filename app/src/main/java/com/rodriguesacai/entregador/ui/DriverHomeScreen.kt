@@ -137,6 +137,17 @@ import kotlinx.coroutines.delay
 private enum class AppTab { Inicio, Corridas, Ganhos, Historico, Conta }
 
 private val AppFont = RodriguesFonts.Montserrat
+
+private object WalletType {
+    val title = 28.sp
+    val label = 13.sp
+    val tiny = 11.sp
+    val body = 12.sp
+    val bodyStrong = 14.sp
+    val cardTitle = 16.sp
+    val cardValue = 22.sp
+    val heroValue = 36.sp
+}
 private val BgTop = Color(0xFFF7FAF6)
 private val BgBottom = Color(0xFFEFF4EF)
 private val Panel = Color.White
@@ -1676,7 +1687,7 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Lime)
         ) {
-            Text("Atualizar dados bancários", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text("Atualizar dados bancários", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
         }
 
         Text(
@@ -1693,25 +1704,25 @@ private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history:
 
 @Composable
 private fun WalletTopBar() {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Text(
             "Carteira",
             color = Ink,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Black,
+            fontSize = WalletType.title,
+            fontWeight = FontWeight.ExtraBold,
             fontFamily = AppFont,
-            modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
         )
         Box(
             Modifier
+                .align(Alignment.CenterEnd)
                 .size(38.dp)
                 .clip(CircleShape)
                 .background(Color.White)
                 .border(1.dp, BorderSoft, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("i", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text("i", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
         }
     }
 }
@@ -1727,13 +1738,13 @@ private fun WalletBalanceHero(value: String, visible: Boolean, onToggle: () -> U
         Box(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF005D25), Color(0xFF008D35))))) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Saldo disponível", color = Color.White.copy(alpha = .92f), fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                    Text("Saldo disponível", color = Color.White.copy(alpha = .90f), fontSize = WalletType.bodyStrong, fontWeight = FontWeight.Medium, fontFamily = AppFont)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (visible) value else "R$ •••••",
                         color = Color.White,
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Black,
+                        fontSize = WalletType.heroValue,
+                        fontWeight = FontWeight.ExtraBold,
                         fontFamily = AppFont,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1768,13 +1779,13 @@ private fun WalletSmallAmountCard(label: String, value: String, visible: Boolean
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.Center) {
-            Text(label, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Text(label, color = Muted, fontSize = WalletType.label, fontWeight = FontWeight.Medium, fontFamily = AppFont)
             Spacer(Modifier.height(8.dp))
             Text(
                 if (visible) value else "R$ •••••",
                 color = Ink,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Black,
+                fontSize = WalletType.cardValue,
+                fontWeight = FontWeight.ExtraBold,
                 fontFamily = AppFont,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1797,9 +1808,9 @@ private fun NextPayoutCard(title: String, description: String) {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Próximo repasse", color = LimeDark, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
-                Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                Text(description, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                Text("Próximo repasse", color = LimeDark, fontSize = WalletType.label, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+                Text(description, color = Muted, fontSize = WalletType.body, fontWeight = FontWeight.Medium, fontFamily = AppFont)
             }
             Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted2)
         }
@@ -1821,7 +1832,7 @@ private fun PixSummaryCard(pixKey: String, bankName: String, verified: Boolean, 
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(if (hasPix) "Chave Pix cadastrada" else "Chave Pix não cadastrada", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                Text(if (hasPix) "Chave Pix cadastrada" else "Chave Pix não cadastrada", color = Muted, fontSize = WalletType.label, fontWeight = FontWeight.Medium, fontFamily = AppFont)
                 Text(
                     when {
                         !visible -> "••••••••"
@@ -1830,8 +1841,8 @@ private fun PixSummaryCard(pixKey: String, bankName: String, verified: Boolean, 
                         else -> "Toque em Mais > Pix/banco"
                     },
                     color = Ink,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Black,
+                    fontSize = WalletType.cardTitle,
+                    fontWeight = FontWeight.ExtraBold,
                     fontFamily = AppFont,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1850,8 +1861,8 @@ private fun PixSummaryCard(pixKey: String, bankName: String, verified: Boolean, 
 private fun LastPayoutsSection(rows: List<DriverPayout>, visible: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Últimos repasses", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, modifier = Modifier.weight(1f))
-            Text("Ver todos", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text("Últimos repasses", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont, modifier = Modifier.weight(1f))
+            Text("Ver todos", color = Lime, fontSize = WalletType.label, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -1866,8 +1877,8 @@ private fun LastPayoutsSection(rows: List<DriverPayout>, visible: Boolean) {
                     }
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("Nenhum repasse encontrado", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                        Text("Quando o gestor registrar pagamentos, eles aparecerão aqui.", color = Muted, fontSize = 12.sp, fontFamily = AppFont)
+                        Text("Nenhum repasse encontrado", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+                        Text("Quando o gestor registrar pagamentos, eles aparecerão aqui.", color = Muted, fontSize = WalletType.body, fontWeight = FontWeight.Medium, fontFamily = AppFont)
                     }
                 }
             } else {
@@ -1884,12 +1895,12 @@ private fun LastPayoutsSection(rows: List<DriverPayout>, visible: Boolean) {
 private fun WalletPayoutRow(item: DriverPayout, visible: Boolean) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(item.createdLabel.ifBlank { "Hoje" }, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
-            Text(item.method.ifBlank { "Repasse" }, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(item.createdLabel.ifBlank { "Hoje" }, color = Muted, fontSize = WalletType.label, fontWeight = FontWeight.Medium, fontFamily = AppFont)
+            Text(item.method.ifBlank { "Repasse" }, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
-        Text(if (visible) item.valueLabel.ifBlank { "—" } else "R$ •••••", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        Text(if (visible) item.valueLabel.ifBlank { "—" } else "R$ •••••", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
         Spacer(Modifier.width(12.dp))
-        Text(item.statusLabel, color = if (item.statusLabel == "Pago") Lime else Warning, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        Text(item.statusLabel, color = if (item.statusLabel == "Pago") Lime else Warning, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
     }
 }
 
