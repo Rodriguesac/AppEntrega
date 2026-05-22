@@ -374,7 +374,7 @@ fun DriverHomeScreen(
                     },
                     onOpenNavigator = onOpenNavigator
                 )
-                AppTab.Ganhos -> EarningsContent(profile!!, stats, history)
+                AppTab.Ganhos -> EarningsContent(profile!!, stats, history, onEditBank = { tab = AppTab.Conta })
                 AppTab.Historico -> HistoryContent(history)
                 AppTab.Conta -> AccountContent(
                     profile = profile!!,
@@ -1609,42 +1609,288 @@ private fun RidesEmptyGuide(title: String, message: String) {
 }
 
 @Composable
-private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history: List<DriverHistory>) {
-    var visible by remember { mutableStateOf(true) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        GlassCard(padding = 18) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+private fun EarningsContent(profile: DriverProfile, stats: DriverStats, history: List<DriverHistory>, onEditBank: () -> Unit) {
+    val context = LocalContext.current
+    var visible by remember { mutableStateOf(!AppSettings.getHideValues(context)) }
+    val pendingBalance = remember(stats) { (stats.totalWeek - stats.totalToday).coerceAtLeast(0.0) }
+    val totalToReceive = remember(stats) { stats.totalWeek.coerceAtLeast(stats.totalToday) }
+    val payoutRows = remember(history) {
+        history
+            .filter { it.historyKind() == "Finalizada" }
+            .sortedByDescending { it.createdAtMillis }
+            .take(3)
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        WalletTopBar()
+
+        WalletBalanceHero(
+            value = DriverRepository.formatCurrency(stats.totalToday),
+            visible = visible,
+            onToggle = {
+                visible = !visible
+                AppSettings.setHideValues(context, !visible)
+            }
+        )
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            WalletSmallAmountCard(
+                label = "Saldo pendente",
+                value = DriverRepository.formatCurrency(pendingBalance),
+                visible = visible,
+                modifier = Modifier.weight(1f)
+            )
+            WalletSmallAmountCard(
+                label = "Total a receber",
+                value = DriverRepository.formatCurrency(totalToReceive),
+                visible = visible,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        NextPayoutCard(
+            title = "A definir",
+            description = "Estimativa será informada pela operação."
+        )
+
+        PixSummaryCard(
+            pixKey = profile.pixKey,
+            bankName = profile.bankName,
+            verified = profile.verified,
+            visible = visible
+        )
+
+        LastPayoutsSection(
+            rows = payoutRows,
+            visible = visible
+        )
+
+        Button(
+            onClick = onEditBank,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Lime)
+        ) {
+            Text("Atualizar dados bancários", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        }
+
+        Text(
+            "Acesse Mais > Pix/banco para editar chave Pix, banco e dados de recebimento.",
+            color = Muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+            fontFamily = AppFont
+        )
+    }
+}
+
+@Composable
+private fun WalletTopBar() {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "Carteira",
+            color = Ink,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Black,
+            fontFamily = AppFont,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center
+        )
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.dp, BorderSoft, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("i", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        }
+    }
+}
+
+@Composable
+private fun WalletBalanceHero(value: String, visible: Boolean, onToggle: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = LimeDark),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Box(Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF005D25), Color(0xFF008D35))))) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Meus ganhos", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                    Text("Resumo financeiro do entregador", color = Muted, fontSize = 14.sp, fontFamily = AppFont)
+                    Text("Saldo disponível", color = Color.White.copy(alpha = .92f), fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (visible) value else "R$ •••••",
+                        color = Color.White,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = AppFont,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                TextButton(onClick = { visible = !visible }) {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = .13f))
+                        .clickable { onToggle() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         if (visible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                         contentDescription = if (visible) "Ocultar valores" else "Mostrar valores",
-                        tint = Muted,
-                        modifier = Modifier.size(22.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(25.dp)
                     )
                 }
             }
-            Spacer(Modifier.height(18.dp))
-            MoneyText(DriverRepository.formatCurrency(stats.totalToday), visible, 46)
-            Text("Hoje • ${stats.finishedCount} corridas finalizadas", color = Lime, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MiniStat("Semana", if (visible) DriverRepository.formatCurrency(stats.totalWeek) else "R$ •••••", Modifier.weight(1f))
-            MiniStat("Mês", if (visible) DriverRepository.formatCurrency(stats.totalMonth) else "R$ •••••", Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun WalletSmallAmountCard(label: String, value: String, visible: Boolean, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.height(88.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.Center) {
+            Text(label, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (visible) value else "R$ •••••",
+                color = Ink,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                fontFamily = AppFont,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        GlassCard(padding = 16) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Próximo repasse", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                    Text(if (visible) "Pix: ${profile.pixKey.ifBlank { "não cadastrado" }}" else "Pix: •••••", color = Muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = AppFont)
-                    Text(if (visible) "Banco: ${profile.bankName.ifBlank { "não informado" }}" else "Banco: •••••", color = Muted2, fontSize = 13.sp, fontFamily = AppFont)
+    }
+}
+
+@Composable
+private fun NextPayoutCard(title: String, description: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1FAF1)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Schedule, contentDescription = null, tint = Lime, modifier = Modifier.size(25.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Próximo repasse", color = LimeDark, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(description, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            }
+            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted2)
+        }
+    }
+}
+
+@Composable
+private fun PixSummaryCard(pixKey: String, bankName: String, verified: Boolean, visible: Boolean) {
+    val hasPix = pixKey.isNotBlank()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFFEAF7EE)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = Lime, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (hasPix) "Chave Pix cadastrada" else "Chave Pix não cadastrada", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+                Text(
+                    when {
+                        !visible -> "••••••••"
+                        hasPix -> pixKey
+                        bankName.isNotBlank() -> bankName
+                        else -> "Toque em Mais > Pix/banco"
+                    },
+                    color = Ink,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = AppFont,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (hasPix && verified) {
+                    Spacer(Modifier.height(6.dp))
+                    StatusPill("Verificada", true)
+                }
+            }
+            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted2)
+        }
+    }
+}
+
+@Composable
+private fun LastPayoutsSection(rows: List<DriverHistory>, visible: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Últimos repasses", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, modifier = Modifier.weight(1f))
+            Text("Ver todos", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            if (rows.isEmpty()) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0xFFEAF7EE)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Lime, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Nenhum repasse encontrado", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                        Text("Quando o gestor registrar pagamentos, eles aparecerão aqui.", color = Muted, fontSize = 12.sp, fontFamily = AppFont)
+                    }
+                }
+            } else {
+                rows.forEachIndexed { index, item ->
+                    WalletPayoutRow(item = item, visible = visible)
+                    if (index < rows.lastIndex) Divider(color = Color(0xFFE9EEE8), thickness = 1.dp)
                 }
             }
         }
-        HistoryContent(history, embedded = true)
+    }
+}
+
+@Composable
+private fun WalletPayoutRow(item: DriverHistory, visible: Boolean) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(item.createdLabel.ifBlank { "Hoje" }, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Text("Corrida ${item.shortRideLabel()}", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        }
+        Text(if (visible) item.value.ifBlank { "—" } else "R$ •••••", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        Spacer(Modifier.width(12.dp))
+        Text("Pago", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
     }
 }
 
@@ -2974,6 +3220,14 @@ private fun Context.isLocationEnabled(): Boolean {
         val manager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         manager.isProviderEnabled(LocationManager.GPS_PROVIDER) || manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }.getOrDefault(false)
+}
+
+private fun DriverHistory.shortRideLabel(): String {
+    val source = rideId.ifBlank { id }
+    if (source.isBlank()) return "#----"
+    val clean = source.replace("pedido", "", ignoreCase = true).replace("corrida", "", ignoreCase = true).trim('-', '_', ' ')
+    val compact = clean.takeLast(5).ifBlank { source.takeLast(5) }
+    return if (compact.startsWith("#")) compact else "#$compact"
 }
 
 private fun DriverHistory.historyKind(): String = when {
