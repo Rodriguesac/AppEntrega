@@ -21,6 +21,11 @@ class UrgentRideActivity : ComponentActivity() {
         val duration = intent.getStringExtra("duration").orEmpty()
         val pickup = intent.getStringExtra("pickup").orEmpty()
         val dropoff = intent.getStringExtra("dropoff").orEmpty()
+        val paymentMethod = intent.getStringExtra("paymentMethod").orEmpty()
+        val paymentStatus = intent.getStringExtra("paymentStatus").orEmpty()
+        val amountToCollect = intent.getStringExtra("amountToCollect").orEmpty()
+        val changeFor = intent.getStringExtra("changeFor").orEmpty()
+        val requiresMachine = intent.getStringExtra("requiresMachine").orEmpty()
         setContent {
             RodriguesNativeTheme(darkTheme = AppSettings.isDarkTheme(this)) {
                 UrgentRideScreen(
@@ -30,6 +35,11 @@ class UrgentRideActivity : ComponentActivity() {
                     duration = duration,
                     pickup = pickup,
                     dropoff = dropoff,
+                    paymentMethod = paymentMethod,
+                    paymentStatus = paymentStatus,
+                    amountToCollect = amountToCollect,
+                    changeFor = changeFor,
+                    requiresMachine = requiresMachine,
                     onAccept = { DriverRepository.acceptRide(this, rideId, onDone = { finish() }, onError = { finish() }) },
                     onReject = { DriverRepository.rejectRide(this, rideId, onDone = { finish() }, onError = { finish() }) },
                     onExpired = { DriverRepository.expireRide(this, rideId, onDone = { finish() }, onError = { finish() }) }

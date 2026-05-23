@@ -55,6 +55,11 @@ fun UrgentRideScreen(
     duration: String,
     pickup: String,
     dropoff: String,
+    paymentMethod: String = "",
+    paymentStatus: String = "",
+    amountToCollect: String = "",
+    changeFor: String = "",
+    requiresMachine: String = "",
     onAccept: () -> Unit,
     onReject: () -> Unit,
     onExpired: () -> Unit
@@ -109,6 +114,7 @@ fun UrgentRideScreen(
                     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         RouteLine("COLETA", pickup.ifBlank { "Coleta não informada" }, Lime)
                         RouteLine("ENTREGA", dropoff.ifBlank { "Área da entrega não informada" }, Purple2)
+                        UrgentPaymentLine(paymentMethod, paymentStatus, amountToCollect, changeFor, requiresMachine)
                         Button(
                             onClick = { detailsOpen = true },
                             modifier = Modifier.fillMaxWidth().height(62.dp),
@@ -158,6 +164,7 @@ fun UrgentRideScreen(
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             RouteLine("COLETA", pickup.ifBlank { "Coleta não informada" }, Lime)
                             RouteLine("ENTREGA", dropoff.ifBlank { "Área da entrega não informada" }, Purple2)
+                            UrgentPaymentLine(paymentMethod, paymentStatus, amountToCollect, changeFor, requiresMachine)
                             Text("Confira os dados disponíveis. Se a operação ainda não enviou alguma informação, o app mostra assim que sincronizar.", color = Muted, fontSize = 12.sp)
                         }
                     }
@@ -178,6 +185,28 @@ fun UrgentRideScreen(
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun UrgentPaymentLine(method: String, status: String, amount: String, changeFor: String, requiresMachine: String) {
+    val methodClean = method.ifBlank { status }.ifBlank { "Pagamento não informado" }
+    val machine = requiresMachine.equals("true", ignoreCase = true) || methodClean.contains("cart", ignoreCase = true) || methodClean.contains("maquin", ignoreCase = true)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = .07f))
+            .border(1.dp, Color.White.copy(alpha = .10f), RoundedCornerShape(18.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text("PAGAMENTO DO PEDIDO", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Black)
+        Text(methodClean, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (amount.isNotBlank()) Text("Valor a receber/passsar: $amount", color = Lime, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        if (changeFor.isNotBlank()) Text("Troco para: $changeFor", color = Danger, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        if (machine) Text("Maquininha necessária", color = Purple2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 

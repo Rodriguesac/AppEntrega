@@ -93,6 +93,12 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Visibility
@@ -131,12 +137,13 @@ import com.rodriguesacai.entregador.data.DriverRepository
 import com.rodriguesacai.entregador.data.DriverRide
 import com.rodriguesacai.entregador.data.DriverStats
 import com.rodriguesacai.entregador.data.PaymentMachine
+import com.rodriguesacai.entregador.data.PaymentSettlementInput
 import com.rodriguesacai.entregador.data.AppRuntimeConfig
 import com.rodriguesacai.entregador.service.AppAlertPlayer
 import com.rodriguesacai.entregador.service.NotificationHelper
 import kotlinx.coroutines.delay
 
-private enum class AppTab { Inicio, Corridas, Ganhos, Historico, Conta }
+private enum class AppTab { Inicio, Corridas, Mapa, Ganhos, Historico, Conta, Notificacoes }
 
 private val AppFont = RodriguesFonts.Montserrat
 
@@ -269,7 +276,28 @@ fun DriverHomeScreen(
                 distance = ride.distance,
                 duration = ride.duration,
                 pickup = ride.pickup,
-                dropoff = ride.dropoff
+                dropoff = ride.dropoff,
+                paymentMethod = ride.paymentMethod,
+                paymentStatus = ride.paymentStatus,
+                amountToCollect = DriverRepository.formatCurrency(ride.amountToCollectNumber).takeIf { ride.amountToCollectNumber > 0.0 } ?: "",
+                changeFor = DriverRepository.formatCurrency(ride.changeForNumber).takeIf { ride.changeForNumber > 0.0 } ?: "",
+                requiresMachine = ride.requiresMachine.toString()
+            )
+        }
+    }
+
+
+    var lastSystemNoticeId by remember { mutableStateOf("") }
+    LaunchedEffect(appNotices.map { it.id to it.read }) {
+        val noticeToShow = appNotices.firstOrNull { it.isVisible() && !it.read }
+        if (noticeToShow != null && noticeToShow.id != lastSystemNoticeId) {
+            lastSystemNoticeId = noticeToShow.id
+            NotificationHelper.appNoticeNotification(
+                context = context,
+                noticeId = noticeToShow.id,
+                title = noticeToShow.title,
+                message = noticeToShow.message,
+                category = noticeToShow.category
             )
         }
     }
@@ -359,7 +387,7 @@ fun DriverHomeScreen(
                 navItem(AppTab.Corridas, tab, "Corridas", Icons.Filled.Route) { tab = it }
                 navItem(AppTab.Ganhos, tab, "Carteira", Icons.Filled.AccountBalanceWallet) { tab = it }
                 navItem(AppTab.Historico, tab, "Histórico", Icons.Filled.History) { tab = it }
-                navItem(AppTab.Conta, tab, "Mais", Icons.Filled.Person) { tab = it }
+                navItem(AppTab.Conta, tab, "Mais", Icons.Filled.MoreHoriz) { tab = it }
             }
         }
     ) { padding ->
@@ -377,6 +405,7 @@ fun DriverHomeScreen(
                     activeRide = activeRide,
                     stats = stats,
                     appBanners = appBanners,
+                    appNotices = appNotices,
                     hideValues = hideValues,
                     onToggleValues = {
                         hideValues = !hideValues
@@ -410,15 +439,20 @@ fun DriverHomeScreen(
                             normalized.contains("ganho") || normalized.contains("carteira") || normalized.contains("repasse") -> AppTab.Ganhos
                             normalized.contains("histor") || normalized.contains("aviso") -> AppTab.Historico
                             normalized.contains("conta") || normalized.contains("perfil") || normalized.contains("pix") || normalized.contains("banco") || normalized.contains("suporte") -> AppTab.Conta
-                            normalized.contains("rota") || normalized.contains("mapa") || normalized.contains("corrida") -> AppTab.Corridas
+                            normalized.contains("mapa") -> AppTab.Mapa
+                            normalized.contains("rota") || normalized.contains("corrida") -> AppTab.Corridas
                             else -> AppTab.Inicio
                         }
                     },
-                    onOpenRides = { tab = AppTab.Corridas }
+                    onOpenRides = { tab = AppTab.Corridas },
+                    onOpenMap = { tab = AppTab.Mapa },
+                    onOpenNotifications = { tab = AppTab.Notificacoes },
+                    onOpenSupport = { tab = AppTab.Conta }
                 )
                 AppTab.Corridas -> RidesContent(
                     pendingRide = pendingRide,
                     activeRide = activeRide,
+                    paymentMachines = paymentMachines,
                     online = online,
                     onAccept = { ride ->
                         DriverRepository.acceptRide(context, ride.id, onDone = { pendingRide = null }, onError = { error = it })
@@ -434,8 +468,17 @@ fun DriverHomeScreen(
                     },
                     onOpenNavigator = onOpenNavigator
                 )
+                AppTab.Mapa -> DriverMapContent(
+                    activeRide = activeRide,
+                    online = online,
+                    onBackHome = { tab = AppTab.Inicio },
+                    onOpenNavigator = onOpenNavigator,
+                    onUpdateRide = { ride, status -> DriverRepository.updateRideStatus(context, ride.id, status, onDone = { }, onError = { error = it }) },
+                    paymentMachines = paymentMachines
+                )
                 AppTab.Ganhos -> EarningsContent(profile!!, stats, history, onEditBank = { tab = AppTab.Conta })
                 AppTab.Historico -> HistoryContent(history)
+                AppTab.Notificacoes -> NotificationsReferenceScreen(appNotices, onBack = { tab = AppTab.Inicio })
                 AppTab.Conta -> AccountContent(
                     profile = profile!!,
                     online = online,
@@ -885,6 +928,7 @@ private fun HomeContent(
     activeRide: DriverRide?,
     stats: DriverStats,
     appBanners: List<AppCarouselBanner>,
+    appNotices: List<AppNotice>,
     hideValues: Boolean,
     onToggleValues: () -> Unit,
     error: String,
@@ -895,7 +939,10 @@ private fun HomeContent(
     onUpdateRide: (DriverRide, String) -> Unit,
     onOpenNavigator: (pickup: String, dropoff: String) -> Unit,
     onCarouselInternal: (String) -> Unit,
-    onOpenRides: () -> Unit
+    onOpenRides: () -> Unit,
+    onOpenMap: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onOpenSupport: () -> Unit
 ) {
     val context = LocalContext.current
     var operational by remember { mutableStateOf(readOperationalStatus(context, profile, online, activeRide)) }
@@ -925,7 +972,10 @@ private fun HomeContent(
             stats = stats,
             operational = operational,
             hideValues = hideValues,
+            unreadNotices = appNotices.count { it.isVisible() && !it.read },
             onToggleValues = onToggleValues,
+            onNotificationsClick = onOpenNotifications,
+            onSupportClick = onOpenSupport,
             onStatusClick = {
                 if (operational.kind == AvailabilityKind.Restricao) {
                     if (online) onToggleOnline(false)
@@ -937,17 +987,15 @@ private fun HomeContent(
         if (error.isNotBlank()) StatusMessage(error, true)
         EarningsStrip(stats, hideValues)
 
-        if (activeRide == null && pendingRide == null) {
-            val visibleBanners = if (appBanners.isNotEmpty()) appBanners else defaultHomeBanners(operational)
-            AppHomeCarousel(visibleBanners, onInternalAction = onCarouselInternal)
-            QuickActionsGrid(onInternalAction = onCarouselInternal)
-        }
-
         when {
-            activeRide != null -> CurrentRideHomeShortcut(activeRide, "Corrida em andamento", "Continue pela aba Corridas.", onOpenRides)
-            pendingRide != null && online -> CurrentRideHomeShortcut(pendingRide, "Oferta recebida", "Aceite ou recuse pela aba Corridas.", onOpenRides)
+            activeRide != null -> CurrentRideHomeShortcut(activeRide, "Corrida em andamento", "Toque para continuar a entrega.", onOpenRides)
+            pendingRide != null && online -> CurrentRideHomeShortcut(pendingRide, "Oferta recebida", "Toque para decidir pela aba Corridas.", onOpenRides)
             operational.kind == AvailabilityKind.Restricao -> RestrictionCard(operational)
         }
+
+        val visibleBanners = if (appBanners.isNotEmpty()) appBanners else defaultHomeBanners(operational)
+        AppHomeCarousel(visibleBanners, onInternalAction = onCarouselInternal)
+        QuickActionsGrid(onInternalAction = onCarouselInternal, onOpenMap = onOpenMap)
         Spacer(Modifier.height(10.dp))
     }
 }
@@ -1251,14 +1299,14 @@ private fun String.isPlaceholderBannerText(): Boolean {
         value == "saiba mais"
 }
 @Composable
-private fun QuickActionsGrid(onInternalAction: (String) -> Unit) {
+private fun QuickActionsGrid(onInternalAction: (String) -> Unit, onOpenMap: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             QuickActionTile("Histórico", "Ver corridas", Icons.Filled.History, Modifier.weight(1f)) { onInternalAction("historico") }
             QuickActionTile("Ganhos", "Resumo financeiro", Icons.Filled.AccountBalanceWallet, Modifier.weight(1f)) { onInternalAction("ganhos") }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            QuickActionTile("Mapa", "Ver região", Icons.Filled.Map, Modifier.weight(1f)) { onInternalAction("mapa") }
+            QuickActionTile("Mapa", "Ver região", Icons.Filled.Map, Modifier.weight(1f)) { onOpenMap() }
             QuickActionTile("Suporte", "Fale conosco", Icons.Filled.SupportAgent, Modifier.weight(1f)) { onInternalAction("conta") }
         }
     }
@@ -1301,7 +1349,10 @@ private fun DriverHeader(
     stats: DriverStats,
     operational: OperationalStatus,
     hideValues: Boolean,
+    unreadNotices: Int,
     onToggleValues: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onSupportClick: () -> Unit,
     onStatusClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1315,8 +1366,8 @@ private fun DriverHeader(
                 Text(
                     "Olá, ${profile.name.shortName()}",
                     color = Ink,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Black,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontFamily = AppFont
@@ -1329,22 +1380,22 @@ private fun DriverHeader(
                         else -> "Você está offline"
                     },
                     color = Muted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Clip,
                     fontFamily = AppFont
                 )
             }
-            HeaderRoundIcon(Icons.Filled.Notifications)
+            HeaderRoundIcon(Icons.Filled.Notifications, showDot = unreadNotices > 0, onClick = onNotificationsClick)
             Spacer(Modifier.width(8.dp))
-            HeaderRoundIcon(Icons.Filled.ChatBubbleOutline)
+            HeaderRoundIcon(Icons.Filled.ChatBubbleOutline, onClick = onSupportClick)
         }
 
         Button(
             onClick = onStatusClick,
-            modifier = Modifier.fillMaxWidth().height(58.dp),
-            shape = RoundedCornerShape(22.dp),
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = operational.buttonColor,
                 contentColor = operational.textColor
@@ -1354,9 +1405,9 @@ private fun DriverHeader(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
-                        .size(38.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = if (operational.kind == AvailabilityKind.Indisponivel) .42f else .16f)),
+                        .background(Color.White.copy(alpha = if (operational.kind == AvailabilityKind.Indisponivel) .42f else .18f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -1371,7 +1422,7 @@ private fun DriverHeader(
                     )
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(operational.label, fontSize = 18.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(operational.label, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont, maxLines = 1, modifier = Modifier.weight(1f))
                 Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = operational.textColor.copy(alpha = .85f), modifier = Modifier.size(22.dp))
             }
         }
@@ -1380,16 +1431,27 @@ private fun DriverHeader(
 
 
 @Composable
-private fun HeaderRoundIcon(icon: ImageVector) {
+private fun HeaderRoundIcon(icon: ImageVector, showDot: Boolean = false, onClick: () -> Unit = {}) {
     Box(
         Modifier
-            .size(44.dp)
+            .size(42.dp)
             .clip(CircleShape)
             .background(Color.White)
-            .border(1.dp, Color(0xFFE2E8E0), CircleShape),
+            .border(1.dp, Color(0xFFE2E8E0), CircleShape)
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = Ink, modifier = Modifier.size(21.dp))
+        Icon(icon, contentDescription = null, tint = Ink, modifier = Modifier.size(20.dp))
+        if (showDot) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(7.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(Danger)
+            )
+        }
     }
 }
 @Composable
@@ -1607,7 +1669,8 @@ private fun IncomingRideCard(
 }
 
 @Composable
-private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, dropoff: String) -> Unit, onUpdateRide: (DriverRide, String) -> Unit) {
+private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, dropoff: String) -> Unit, onUpdateRide: (DriverRide, String) -> Unit, paymentMachines: List<PaymentMachine> = emptyList()) {
+    val context = LocalContext.current
     val title = when (ride.status) {
         "accepted", "ACEITA", "A_CAMINHO_LOJA" -> "Indo para coleta"
         "pickup", "COLETANDO", "NA_COLETA" -> "Na coleta"
@@ -1694,7 +1757,15 @@ private fun ActiveRideCard(ride: DriverRide, onOpenNavigator: (pickup: String, d
             Text(if (navDestination.isNotBlank()) "Abrir navegação" else "Navegação indisponível", color = if (navDestination.isNotBlank()) Lime else Muted2, fontWeight = FontWeight.Black, fontFamily = AppFont)
         }
         if (isArrivedClient) {
-            DeliveryCodeAndPaymentGate(ride = ride, onConfirm = { onUpdateRide(ride, "finished") })
+            DeliveryCodeAndPaymentGate(ride = ride, paymentMachines = paymentMachines, onConfirm = { input ->
+                DriverRepository.savePaymentSettlementForRide(
+                    context = context,
+                    rideId = ride.id,
+                    input = input,
+                    onDone = { onUpdateRide(ride, "finished") },
+                    onError = { onUpdateRide(ride, "finished") }
+                )
+            })
         } else {
             PrimaryButton(nextLabel) { onUpdateRide(ride, nextStatus) }
         }
@@ -1765,23 +1836,51 @@ private fun PaymentOperationPanel(ride: DriverRide, compact: Boolean) {
 }
 
 @Composable
-private fun DeliveryCodeAndPaymentGate(ride: DriverRide, onConfirm: () -> Unit) {
+private fun DeliveryCodeAndPaymentGate(ride: DriverRide, paymentMachines: List<PaymentMachine>, onConfirm: (PaymentSettlementInput) -> Unit) {
     var code by remember(ride.id) { mutableStateOf("") }
     val expected = ride.deliveryCode.filter { it.isDigit() }
     val typed = code.filter { it.isDigit() }
     val hasExpected = expected.length == 4
     val validCode = typed == "48" || (hasExpected && typed.length == 4 && typed == expected)
+
+    val methodUpper = ride.paymentMethod.uppercase(Locale.ROOT)
+    val statusUpper = ride.paymentStatus.uppercase(Locale.ROOT)
+    val paidOnline = statusUpper.contains("PAGO") || methodUpper.contains("ONLINE") || methodUpper.contains("APP") || methodUpper.contains("INFINITE")
+    val defaultMethod = when {
+        paidOnline -> "PAGO_ONLINE"
+        methodUpper.contains("DINHEIRO") -> "DINHEIRO"
+        methodUpper.contains("PIX") -> "PIX"
+        methodUpper.contains("CART") || methodUpper.contains("MAQUIN") || ride.requiresMachine -> "MAQUININHA"
+        else -> ""
+    }
+    var paymentMethod by remember(ride.id) { mutableStateOf(defaultMethod) }
+    var paymentConfirmed by remember(ride.id, defaultMethod) { mutableStateOf(defaultMethod == "PAGO_ONLINE") }
+    var transactionType by remember(ride.id) { mutableStateOf(if (defaultMethod == "MAQUININHA") "DEBITO" else "") }
+    var selectedMachineId by remember(ride.id, paymentMachines.size) { mutableStateOf(paymentMachines.firstOrNull()?.id.orEmpty()) }
+
+    val needsPaymentChoice = !paidOnline
+    val needsMachine = paymentMethod == "MAQUININHA"
+    val machineOk = !needsMachine || transactionType.isNotBlank()
+    val paymentOk = !needsPaymentChoice || (paymentMethod.isNotBlank() && paymentConfirmed && machineOk)
+    val readyToFinish = validCode && paymentOk
+    val orderTotal = when {
+        ride.amountToCollectNumber > 0.0 -> ride.amountToCollectNumber
+        ride.clientTotalNumber > 0.0 -> ride.clientTotalNumber
+        else -> 0.0
+    }
+    val selectedMachine = paymentMachines.firstOrNull { it.id == selectedMachineId }
+
     val message = when {
-        typed == "48" -> "Código secreto aceito pela operação."
+        typed == "48" -> "Código secreto 48 aceito pela operação."
         validCode -> "Código de entrega confirmado."
         hasExpected -> "Peça ao cliente o código de 4 dígitos."
         else -> "Código não informado no pedido. Use 48 somente se a operação autorizar."
     }
 
-    GlassCard(padding = 16, borderColor = if (validCode) Lime.copy(alpha = .35f) else Warning.copy(alpha = .35f)) {
+    GlassCard(padding = 16, borderColor = if (readyToFinish) Lime.copy(alpha = .35f) else Warning.copy(alpha = .35f)) {
         Text("Confirmação da entrega", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
         Spacer(Modifier.height(6.dp))
-        Text("Antes de finalizar, confirme o código e o pagamento quando houver cobrança.", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+        Text("A entrega só finaliza depois do código e do pagamento tratado.", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = code,
@@ -1793,13 +1892,67 @@ private fun DeliveryCodeAndPaymentGate(ride: DriverRide, onConfirm: () -> Unit) 
         )
         Spacer(Modifier.height(8.dp))
         Text(message, color = if (validCode) Lime else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
-        Spacer(Modifier.height(12.dp))
+
+        Spacer(Modifier.height(14.dp))
         PaymentOperationPanel(ride, compact = true)
         Spacer(Modifier.height(12.dp))
-        PrimaryButton("Finalizar entrega", enabled = validCode) { onConfirm() }
-        if (!validCode) {
+        if (paidOnline) {
+            StatusMessage("Pagamento online: nada a cobrar do cliente.", false)
+        } else {
+            Text("Como o cliente pagou?", color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TinyChip("Dinheiro", paymentMethod == "DINHEIRO", Modifier.weight(1f)) { paymentMethod = "DINHEIRO"; paymentConfirmed = false }
+                TinyChip("Pix", paymentMethod == "PIX", Modifier.weight(1f)) { paymentMethod = "PIX"; paymentConfirmed = false }
+                TinyChip("Cartão", paymentMethod == "MAQUININHA", Modifier.weight(1f)) { paymentMethod = "MAQUININHA"; paymentConfirmed = false }
+            }
+            if (paymentMethod == "MAQUININHA") {
+                Spacer(Modifier.height(10.dp))
+                Text("Maquininha usada", color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Spacer(Modifier.height(6.dp))
+                if (paymentMachines.isNotEmpty()) {
+                    paymentMachines.take(3).forEach { machine ->
+                        TinyChip(machine.name.take(18), selectedMachineId == machine.id, Modifier.fillMaxWidth()) { selectedMachineId = machine.id }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                } else {
+                    Text("Nenhuma maquininha cadastrada no gestor. Será salvo para conferência manual.", color = Warning, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("DEBITO", "CREDITO", "PARCELADO", "TICKET").forEach { type ->
+                        TinyChip(type.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase() }, transactionType == type, Modifier.weight(1f)) { transactionType = type }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { paymentConfirmed = true },
+                enabled = paymentMethod.isNotBlank() && machineOk,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(if (paymentConfirmed) "Pagamento confirmado" else "Confirmar pagamento recebido", color = if (paymentConfirmed) Lime else Ink, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        val confirmInput = PaymentSettlementInput(
+            rideId = ride.id,
+            orderTotal = orderTotal,
+            driverFee = ride.valueNumber,
+            paymentMethod = if (paidOnline) "PAGO_ONLINE" else paymentMethod.ifBlank { "NAO_INFORMADO" },
+            transactionType = transactionType,
+            machineId = selectedMachine?.id.orEmpty(),
+            machineName = selectedMachine?.name.orEmpty(),
+            receivedByDriver = !paidOnline && paymentMethod in setOf("DINHEIRO", "MAQUININHA"),
+            receivedBy = if (!paidOnline && paymentMethod in setOf("DINHEIRO", "MAQUININHA")) "ENTREGADOR" else "SISTEMA",
+            note = "codigoDigitado=$typed; codigoEsperadoInformado=$hasExpected; codigoSecretoUsado=${typed == "48"}"
+        )
+        PrimaryButton("Finalizar entrega", enabled = readyToFinish) { onConfirm(confirmInput) }
+        if (!readyToFinish) {
             Spacer(Modifier.height(6.dp))
-            Text("Se houver problema com o código, registre ocorrência antes de encerrar a corrida.", color = Danger, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Text("Falta confirmar código e/ou pagamento. Se houver problema, registre ocorrência antes de encerrar.", color = Danger, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
     }
 }
@@ -1851,6 +2004,7 @@ private fun moneyOrDash(value: Double): String = if (value > 0.0) DriverReposito
 private fun RidesContent(
     pendingRide: DriverRide?,
     activeRide: DriverRide?,
+    paymentMachines: List<PaymentMachine>,
     online: Boolean,
     onAccept: (DriverRide) -> Unit,
     onReject: (DriverRide, String) -> Unit,
@@ -1896,7 +2050,7 @@ private fun RidesContent(
 
         when {
             activeRide != null -> {
-                ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide)
+                ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide, paymentMachines)
                 GlassCard(padding = 14) {
                     Text("Ao finalizar, a corrida sai daqui e aparece no Histórico.", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
                 }
@@ -1910,6 +2064,72 @@ private fun RidesContent(
                 OfflineCard(OperationalStatus(AvailabilityKind.Indisponivel, "Indisponível", "Fique disponível para receber corridas", Color(0xFF232129), Ink, true))
                 RidesEmptyGuide("Nenhuma corrida em andamento", "A aba Corridas é o atalho para oferta, rota ativa, etapas da entrega e ocorrência.")
             }
+        }
+    }
+}
+
+@Composable
+private fun DriverMapContent(
+    activeRide: DriverRide?,
+    online: Boolean,
+    onBackHome: () -> Unit,
+    onOpenNavigator: (pickup: String, dropoff: String) -> Unit,
+    onUpdateRide: (DriverRide, String) -> Unit,
+    paymentMachines: List<PaymentMachine>
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .border(1.dp, BorderSoft, CircleShape)
+                    .clickable { onBackHome() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Ink, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (activeRide == null) "Mapa" else "Mapa da rota", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, fontFamily = AppFont)
+                Text(if (activeRide == null) "((•)) ${if (online) "Disponível" else "Indisponível"}" else "Corrida em andamento", color = if (online || activeRide != null) Lime else Muted, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            }
+        }
+
+        if (activeRide == null) {
+            GlassCard(padding = 0, borderColor = Color(0xFFE5EAE4)) {
+                Box {
+                    RealDeliveryMap(
+                        title = "Sua região",
+                        subtitle = if (online) "((•)) Disponível" else "Indisponível",
+                        pickupAddress = "",
+                        dropoffAddress = "",
+                        mode = DeliveryMapMode.DRIVER_TO_PICKUP,
+                        modifier = Modifier.height(560.dp)
+                    )
+                    Box(
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 14.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color.White.copy(alpha = .92f))
+                            .border(1.dp, BorderSoft, RoundedCornerShape(999.dp))
+                            .padding(horizontal = 16.dp, vertical = 9.dp)
+                    ) {
+                        Text("((•)) ${if (online) "Disponível" else "Indisponível"}", color = if (online) LimeDark else Muted, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                    }
+                }
+            }
+            Text("O mapa usa a localização do próprio celular para mostrar sua posição. O Firebase só é necessário para a operação acompanhar quando houver corrida.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+        } else {
+            ActiveRideCard(activeRide, onOpenNavigator, onUpdateRide, paymentMachines)
         }
     }
 }

@@ -9,6 +9,7 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
+import kotlin.math.absoluteValue
 import androidx.core.app.NotificationCompat
 import com.rodriguesacai.entregador.MainActivity
 import com.rodriguesacai.entregador.R
@@ -17,6 +18,7 @@ import com.rodriguesacai.entregador.UrgentRideActivity
 object NotificationHelper {
     const val CHANNEL_ONLINE = "driver_online"
     const val CHANNEL_URGENT = "urgent_ride_v600"
+    const val CHANNEL_NOTICE = "driver_app_notices"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -47,8 +49,18 @@ object NotificationHelper {
                     .build()
             )
         }
+        val notices = NotificationChannel(
+            CHANNEL_NOTICE,
+            "Avisos da operação",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Avisos enviados pelo gestor para o app do entregador"
+            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+            enableVibration(true)
+        }
         manager.createNotificationChannel(online)
         manager.createNotificationChannel(urgent)
+        manager.createNotificationChannel(notices)
     }
 
     fun onlineNotification(context: Context): Notification {
@@ -90,6 +102,35 @@ object NotificationHelper {
         )
     }
 
+    fun appNoticeNotification(
+        context: Context,
+        noticeId: String,
+        title: String,
+        message: String,
+        category: String = "Operação"
+    ) {
+        val pending = PendingIntent.getActivity(
+            context,
+            (noticeId.hashCode().absoluteValue % 50000) + 2000,
+            Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_NOTICE)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title.ifBlank { "Aviso da operação" })
+            .setContentText(message.ifBlank { category })
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message.ifBlank { title }))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify((noticeId.hashCode().absoluteValue % 50000) + 2000, notification)
+    }
+
     fun urgentRideNotification(
         context: Context,
         rideId: String,
@@ -97,7 +138,12 @@ object NotificationHelper {
         distance: String,
         duration: String,
         pickup: String,
-        dropoff: String
+        dropoff: String,
+        paymentMethod: String = "",
+        paymentStatus: String = "",
+        amountToCollect: String = "",
+        changeFor: String = "",
+        requiresMachine: String = ""
     ) {
         val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.alerta}")
         AppAlertPlayer.playNewRide(context)
@@ -110,6 +156,11 @@ object NotificationHelper {
             putExtra("duration", duration)
             putExtra("pickup", pickup)
             putExtra("dropoff", dropoff)
+            putExtra("paymentMethod", paymentMethod)
+            putExtra("paymentStatus", paymentStatus)
+            putExtra("amountToCollect", amountToCollect)
+            putExtra("changeFor", changeFor)
+            putExtra("requiresMachine", requiresMachine)
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
