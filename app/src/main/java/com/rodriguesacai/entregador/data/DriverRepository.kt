@@ -17,7 +17,7 @@ import java.util.Locale
 import java.time.Instant
 
 object DriverRepository {
-    private const val APP_VERSION = "6.11.0"
+    private const val APP_VERSION = "6.12.0"
     private const val PREFS = "driver_session"
     private const val KEY_ID = "driver_id"
     private const val KEY_NAME = "driver_name"
@@ -2246,6 +2246,9 @@ private fun DocumentSnapshot.driverPayoutValue(): Double {
 
 private fun DocumentSnapshot.clientTotalValue(): Double {
     return anyDouble(
+        "pagamento.valorPedido",
+        "valores.valorPedido",
+        "valores.total",
         "valorTotalPedido",
         "totalPedido",
         "total",
@@ -2257,6 +2260,8 @@ private fun DocumentSnapshot.clientTotalValue(): Double {
 
 private fun DocumentSnapshot.machineFeeValue(): Double {
     return anyDouble(
+        "acerto.taxasMaquininha",
+        "pagamento.taxaMaquininha",
         "taxaMaquininha",
         "valorTaxaMaquininha",
         "maquininhaTaxaValor",
@@ -2290,13 +2295,18 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val number = driverPayoutValue()
     val clientTotal = clientTotalValue()
     val machineFee = machineFeeValue()
-    val paymentMethod = anyString("formaPagamento", "pagamento", "paymentMethod", "metodoPagamento")
-    val paymentStatus = anyString("statusPagamento", "pagamentoStatus", "paymentStatus", "statusDoPagamento")
-    val receivedBy = anyString("recebidoPor", "quemRecebe", "recebedor", "paymentReceiver")
-    val changeFor = anyDouble("trocoPara", "troco", "valorTrocoPara", "changeFor") ?: 0.0
-    val requiresMachine = anyBoolean("precisaMaquininha", "maquininhaNecessaria", "requiresMachine", "cartaoPresencial") == true
-    val deliveryCode = anyString("codigoEntrega", "codigoConfirmacaoEntrega", "deliveryCode", "codigoCliente", "pinEntrega", "pin")
-    val amountToCollect = anyDouble("valorReceberCliente", "valorCobrarCliente", "trocoValorCobrar", "cobrarDoCliente") ?: clientTotal
+    val paymentMethod = anyString(
+        "pagamento.forma", "pagamento.metodo", "pagamento.formaLabel", "pagamento.metodoLabel",
+        "formaPagamento", "pagamento", "paymentMethod", "metodoPagamento"
+    )
+    val paymentStatus = anyString(
+        "pagamento.status", "statusPagamento", "pagamentoStatus", "paymentStatus", "statusDoPagamento"
+    )
+    val receivedBy = anyString("pagamento.recebidoPor", "recebidoPor", "quemRecebe", "recebedor", "paymentReceiver")
+    val changeFor = anyDouble("pagamento.trocoPara", "trocoPara", "troco", "valorTrocoPara", "changeFor") ?: 0.0
+    val requiresMachine = anyBoolean("pagamento.precisaMaquininha", "precisaMaquininha", "maquininhaNecessaria", "requiresMachine", "cartaoPresencial") == true
+    val deliveryCode = anyString("codigoEntrega", "codigoConfirmacaoEntrega", "deliveryCode", "codigoCliente", "pinEntrega", "pin", "pedido.codigoEntrega")
+    val amountToCollect = anyDouble("pagamento.valorReceberCliente", "valores.valorReceberCliente", "valorReceberCliente", "valorCobrarCliente", "trocoValorCobrar", "cobrarDoCliente") ?: clientTotal
     val storeReturn = if (receivedBy.upperOrTrim() in setOf("ENTREGADOR", "MOTOBOY", "DRIVER")) (amountToCollect - machineFee - number).coerceAtLeast(0.0) else 0.0
     val assigned = anyString(
         "entregadorId", "entregadorUid", "motoboyId", "motoboyUid", "uidEntregador",
