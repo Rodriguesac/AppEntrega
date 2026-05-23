@@ -17,7 +17,7 @@ import java.util.Locale
 import java.time.Instant
 
 object DriverRepository {
-    private const val APP_VERSION = "6.10.1"
+    private const val APP_VERSION = "6.10.2"
     private const val PREFS = "driver_session"
     private const val KEY_ID = "driver_id"
     private const val KEY_NAME = "driver_name"
@@ -1137,6 +1137,7 @@ object DriverRepository {
             val realStatus = when (status) {
                 "pickup" -> "COLETANDO"
                 "delivering" -> "EM_ROTA"
+                "arrived_client" -> "ENTREGADOR_NO_LOCAL"
                 "finished" -> "CONCLUIDA"
                 else -> status
             }
@@ -1156,6 +1157,12 @@ object DriverRepository {
                 "delivering" -> {
                     fields["saiuEntregaEm"] = Timestamp.now()
                     fields["deliveryStartedAt"] = Timestamp.now()
+                }
+                "arrived_client" -> {
+                    fields["chegouClienteEm"] = Timestamp.now()
+                    fields["arrivedClientAt"] = Timestamp.now()
+                    fields["aguardandoCodigoEntrega"] = true
+                    fields["deliveryCodeRequired"] = true
                 }
                 "finished" -> {
                     fields["concluidaEm"] = Timestamp.now()
@@ -2023,7 +2030,11 @@ data class DriverRide(
     val storeReturnNumber: Double = 0.0,
     val machineFeeNumber: Double = 0.0,
     val paymentMethod: String = "",
-    val receivedBy: String = ""
+    val paymentStatus: String = "",
+    val receivedBy: String = "",
+    val changeForNumber: Double = 0.0,
+    val requiresMachine: Boolean = false,
+    val deliveryCode: String = ""
 ) {
     fun matchesDriver(driverId: String): Boolean {
         val ids = listOf(assignedDriverId, targetDriverId).filter { it.isNotBlank() }
@@ -2105,7 +2116,8 @@ private val STORE_NOT_ACCEPTED_STATUSES = setOf(
 )
 private val ACCEPTED_STATUSES = setOf("ACEITA", "A_CAMINHO_LOJA", "AGUARDANDO_PRONTOS", "ACCEPTED", "ACEITO", "INDO_COLETA")
 private val PICKUP_STATUSES = setOf("COLETANDO", "LIBERADA_PARA_SAIDA", "PICKUP", "EM_COLETA", "COLETADO")
-private val DELIVERING_STATUSES = setOf("EM_ROTA", "SAIU_ENTREGA", "A_CAMINHO_CLIENTE", "ENTREGADOR_NO_LOCAL", "DELIVERING", "EM_ENTREGA", "CHEGOU_ENTREGA")
+private val ARRIVED_CLIENT_STATUSES = setOf("ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE", "CHEGOU_ENTREGA", "NO_CLIENTE", "ARRIVED_CLIENT", "ARRIVED_AT_CLIENT")
+private val DELIVERING_STATUSES = setOf("EM_ROTA", "SAIU_ENTREGA", "A_CAMINHO_CLIENTE", "DELIVERING", "EM_ENTREGA")
 private val FINAL_HISTORY_STATUSES = setOf("CONCLUIDA", "ENTREGUE", "FINALIZADA", "FINISHED", "DELIVERED", "finished", "delivered")
 private val APPROVED_STATUSES = setOf("APROVADO", "APPROVED", "LIBERADO", "ATIVO", "ACTIVE")
 private val BLOCKED_STATUSES = setOf("REPROVADO", "BLOQUEADO", "BLOCKED", "SUSPENSO", "SUSPENDED", "CANCELADO")
@@ -2117,6 +2129,7 @@ private fun normalizeUiStatus(raw: String, collectionName: String = ""): String 
         status in offerStatuses -> "pending"
         status in ACCEPTED_STATUSES -> "accepted"
         status in PICKUP_STATUSES -> "pickup"
+        status in ARRIVED_CLIENT_STATUSES -> "arrived_client"
         status in DELIVERING_STATUSES -> "delivering"
         status in FINAL_HISTORY_STATUSES -> "finished"
         else -> raw.ifBlank { "" }
@@ -2256,7 +2269,7 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
 
     val rawStatus = if (collectionName == "pedidos") {
         val main = anyString("status").upperOrTrim()
-        if (main in ACCEPTED_STATUSES || main in PICKUP_STATUSES || main in DELIVERING_STATUSES || main in FINAL_HISTORY_STATUSES) {
+        if (main in ACCEPTED_STATUSES || main in PICKUP_STATUSES || main in ARRIVED_CLIENT_STATUSES || main in DELIVERING_STATUSES || main in FINAL_HISTORY_STATUSES) {
             anyString("status")
         } else {
             anyString(
@@ -2278,7 +2291,11 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
     val clientTotal = clientTotalValue()
     val machineFee = machineFeeValue()
     val paymentMethod = anyString("formaPagamento", "pagamento", "paymentMethod", "metodoPagamento")
+    val paymentStatus = anyString("statusPagamento", "pagamentoStatus", "paymentStatus", "statusDoPagamento")
     val receivedBy = anyString("recebidoPor", "quemRecebe", "recebedor", "paymentReceiver")
+    val changeFor = anyDouble("trocoPara", "troco", "valorTrocoPara", "changeFor") ?: 0.0
+    val requiresMachine = anyBoolean("precisaMaquininha", "maquininhaNecessaria", "requiresMachine", "cartaoPresencial") == true
+    val deliveryCode = anyString("codigoEntrega", "codigoConfirmacaoEntrega", "deliveryCode", "codigoCliente", "pinEntrega", "pin")
     val amountToCollect = anyDouble("valorReceberCliente", "valorCobrarCliente", "trocoValorCobrar", "cobrarDoCliente") ?: clientTotal
     val storeReturn = if (receivedBy.upperOrTrim() in setOf("ENTREGADOR", "MOTOBOY", "DRIVER")) (amountToCollect - machineFee - number).coerceAtLeast(0.0) else 0.0
     val assigned = anyString(
@@ -2329,7 +2346,11 @@ private fun DocumentSnapshot.toDriverRide(collectionName: String): DriverRide? {
         storeReturnNumber = storeReturn,
         machineFeeNumber = machineFee,
         paymentMethod = paymentMethod,
-        receivedBy = receivedBy
+        paymentStatus = paymentStatus,
+        receivedBy = receivedBy,
+        changeForNumber = changeFor,
+        requiresMachine = requiresMachine,
+        deliveryCode = deliveryCode.onlyDigitsLocal()
     )
 }
 

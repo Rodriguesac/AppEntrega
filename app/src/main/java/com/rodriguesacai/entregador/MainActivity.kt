@@ -31,7 +31,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        askNotificationPermissionOnly()
         setContent {
             RodriguesNativeTheme(darkTheme = AppSettings.isDarkTheme(this)) {
                 DriverHomeScreen(
@@ -41,7 +40,9 @@ class MainActivity : ComponentActivity() {
                     onOpenNotificationSettings = { openNotificationSettings() },
                     onOpenLocationSettings = { openAppSettings() },
                     onOpenFullScreenSettings = { openFullScreenSettings() },
-                    onOpenBatterySettings = { openBatterySettings() }
+                    onOpenBatterySettings = { openBatterySettings() },
+                    onRequestNotificationPermission = { askNotificationPermissionOnly() },
+                    onRequestLocationPermission = { requestLocationOnly() }
                 )
             }
         }
@@ -55,6 +56,11 @@ class MainActivity : ComponentActivity() {
 
     private fun requestLocationAndStartOnline() {
         pendingOnlineStart = true
+        locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
+
+    private fun requestLocationOnly() {
+        pendingOnlineStart = false
         locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
     }
 

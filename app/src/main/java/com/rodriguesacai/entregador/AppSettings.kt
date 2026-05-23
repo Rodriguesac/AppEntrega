@@ -7,6 +7,7 @@ object AppSettings {
     private const val KEY_NAV_APP = "navigation_app"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_HIDE_VALUES = "hide_values"
+    private const val KEY_WELCOME_DONE = "welcome_done"
 
     const val NAV_AUTO = "auto"
     const val NAV_GOOGLE = "google_maps"
@@ -73,4 +74,17 @@ object AppSettings {
             .putBoolean(KEY_HIDE_VALUES, value)
             .apply()
     }
+
+    fun isWelcomeDone(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_WELCOME_DONE, false)
+    }
+
+    fun setWelcomeDone(context: Context, value: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_WELCOME_DONE, value)
+            .apply()
+    }
 }
+
