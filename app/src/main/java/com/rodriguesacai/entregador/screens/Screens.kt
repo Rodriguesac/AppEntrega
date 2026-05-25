@@ -267,7 +267,7 @@ private fun OfferCard(offer: Offer, onAccept: () -> Unit, onReject: () -> Unit) 
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             SecondaryButton("Recusar", Icons.Outlined.Close, onReject, Modifier.weight(1f))
-            PrimaryButton("Aceitar", Icons.Outlined.Check, onAccept, Modifier.weight(1f))
+            PrimaryButton(text = "Aceitar", icon = Icons.Outlined.Check, onClick = onAccept, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -374,7 +374,7 @@ private fun CurrentRideContent(ride: Ride, onAdvance: () -> Unit, onProblem: () 
         Spacer(Modifier.height(18.dp))
         Stepper(ride.currentStage)
         Spacer(Modifier.height(18.dp))
-        PrimaryButton(ride.nextAction, Icons.Outlined.CheckCircle, onAdvance)
+        PrimaryButton(text = ride.nextAction, icon = Icons.Outlined.CheckCircle, onClick = onAdvance)
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             SecondaryButton("Abrir navegação", Icons.Outlined.Navigation, {}, Modifier.weight(1f))
@@ -448,7 +448,7 @@ private fun MapScreen(state: UiState, vm: AppViewModel) = ScreenColumn {
     Spacer(Modifier.height(12.dp))
     InfoLine(Icons.Outlined.LocationOn, "Localização", state.locationText)
     Spacer(Modifier.height(10.dp))
-    PrimaryButton(if (state.profile.online) "Disponível" else "Ficar disponível", Icons.Outlined.PowerSettingsNew) { vm.setAvailability(true) }
+    PrimaryButton(text = if (state.profile.online) "Disponível" else "Ficar disponível", icon = Icons.Outlined.PowerSettingsNew, onClick = { vm.setAvailability(true) })
 }
 
 @Composable
@@ -486,7 +486,7 @@ private fun ProfileScreen(state: UiState, vm: AppViewModel) = ScreenColumn {
     PremiumCard {
         OutlinedTextField(value = driverId, onValueChange = { driverId = it }, label = { Text("UID/código do entregador") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(10.dp))
-        PrimaryButton("Salvar e conectar", Icons.Outlined.Check) { vm.setDriverId(driverId) }
+        PrimaryButton(text = "Salvar e conectar", icon = Icons.Outlined.Check, onClick = { vm.setDriverId(driverId) })
     }
     Spacer(Modifier.height(12.dp))
     PremiumCard {
@@ -496,7 +496,7 @@ private fun ProfileScreen(state: UiState, vm: AppViewModel) = ScreenColumn {
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(value = banco, onValueChange = { banco = it }, label = { Text("Banco") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(10.dp))
-        PrimaryButton("Salvar Pix/banco", Icons.Outlined.Check) { vm.updatePixBank(pix, banco) }
+        PrimaryButton(text = "Salvar Pix/banco", icon = Icons.Outlined.Check, onClick = { vm.updatePixBank(pix, banco) })
     }
     Spacer(Modifier.height(12.dp))
     InfoLine(Icons.Outlined.Lock, "Segurança", "Alterações ficam gravadas no documento do entregador")

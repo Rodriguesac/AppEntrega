@@ -4,10 +4,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
-import com.rodriguesacai.entregador.R
 
 val AppGreen = Color(0xFF1E9D3A)
 val AppGreenDark = Color(0xFF08772A)
@@ -22,21 +18,9 @@ val SoftLine = Color(0xFFE8EEE6)
 val Danger = Color(0xFFD93025)
 val Warning = Color(0xFFFFB020)
 
-private val AppFontProvider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
-
-private val AppFontName = GoogleFont("Inter")
-
-val AppFont = FontFamily(
-    Font(googleFont = AppFontName, fontProvider = AppFontProvider, weight = FontWeight.Normal),
-    Font(googleFont = AppFontName, fontProvider = AppFontProvider, weight = FontWeight.Medium),
-    Font(googleFont = AppFontName, fontProvider = AppFontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = AppFontName, fontProvider = AppFontProvider, weight = FontWeight.Bold),
-    Font(googleFont = AppFontName, fontProvider = AppFontProvider, weight = FontWeight.ExtraBold)
-)
+// Fonte fixa do app, sem download externo e sem depender da fonte escolhida pelo usuário no celular.
+// Usa a família sans-serif nativa do Android/Compose para manter estabilidade de build.
+val AppFont = FontFamily.SansSerif
 
 @Composable
 fun RodriguesTheme(content: @Composable () -> Unit) {

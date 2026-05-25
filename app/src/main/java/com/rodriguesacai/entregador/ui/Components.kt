@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +34,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -215,35 +213,41 @@ fun MetricBlock(icon: ImageVector, label: String, value: String, modifier: Modif
 
 @Composable
 fun BottomNav(selected: AppTab, unread: Int, onSelect: (AppTab) -> Unit) {
-    NavigationBar(containerColor = Color.White, tonalElevation = 0.dp, modifier = Modifier.fillMaxWidth().border(1.dp, SoftLine)) {
-        NavItem(AppTab.Home, selected, Icons.Outlined.Home, "Home", onSelect)
-        NavItem(AppTab.Mapa, selected, Icons.Outlined.Map, "Mapa", onSelect)
-        NavItem(AppTab.Corrida, selected, Icons.Outlined.LocalMall, "Corrida", onSelect)
-        NavItem(AppTab.Ganhos, selected, Icons.Outlined.AccountBalanceWallet, "Ganhos", onSelect)
-        NavItem(AppTab.Perfil, selected, Icons.Outlined.Person, "Perfil", onSelect, unread)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .border(1.dp, SoftLine)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        NavItem(AppTab.Home, selected, Icons.Outlined.Home, "Home", onSelect, Modifier.weight(1f))
+        NavItem(AppTab.Mapa, selected, Icons.Outlined.Map, "Mapa", onSelect, Modifier.weight(1f))
+        NavItem(AppTab.Corrida, selected, Icons.Outlined.LocalMall, "Corrida", onSelect, Modifier.weight(1f))
+        NavItem(AppTab.Ganhos, selected, Icons.Outlined.AccountBalanceWallet, "Ganhos", onSelect, Modifier.weight(1f))
+        NavItem(AppTab.Perfil, selected, Icons.Outlined.Person, "Perfil", onSelect, Modifier.weight(1f), unread)
     }
 }
 
 @Composable
-private fun NavItem(tab: AppTab, selected: AppTab, icon: ImageVector, label: String, onSelect: (AppTab) -> Unit, badge: Int = 0) {
-    NavigationBarItem(
-        selected = selected == tab,
-        onClick = { onSelect(tab) },
-        icon = {
-            Box {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-                if (badge > 0) Box(Modifier.size(8.dp).clip(CircleShape).background(Danger).align(Alignment.TopEnd))
-            }
-        },
-        label = { Text(label, fontFamily = AppFont, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = AppGreen,
-            selectedTextColor = AppGreen,
-            indicatorColor = AppGreenSoft,
-            unselectedIconColor = Muted,
-            unselectedTextColor = Muted
-        )
-    )
+private fun NavItem(tab: AppTab, selected: AppTab, icon: ImageVector, label: String, onSelect: (AppTab) -> Unit, modifier: Modifier = Modifier, badge: Int = 0) {
+    val active = selected == tab
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (active) AppGreenSoft else Color.Transparent)
+            .clickable { onSelect(tab) }
+            .padding(vertical = 7.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.TopEnd) {
+            Icon(icon, contentDescription = null, tint = if (active) AppGreen else Muted, modifier = Modifier.size(23.dp))
+            if (badge > 0) Box(Modifier.size(8.dp).clip(CircleShape).background(Danger))
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = if (active) AppGreen else Muted, fontFamily = AppFont, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+    }
 }
 
 @Composable

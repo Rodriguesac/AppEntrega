@@ -16,8 +16,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 35
-        versionCode = 802
-        versionName = "8.0.2-pro-real-limpo"
+        versionCode = 803
+        versionName = "8.0.3-pro-real-corrigido"
     }
 
     buildTypes {
@@ -58,7 +58,6 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.ui:ui-text-google-fonts")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")

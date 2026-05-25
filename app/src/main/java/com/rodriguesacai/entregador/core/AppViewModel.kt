@@ -122,7 +122,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             database.collection("entregadores").document(driverId).set(
                 mapOf(
                     "fcmToken" to token,
-                    "appVersion" to "8.0.2-pro-real-limpo",
+                    "appVersion" to "8.0.3-pro-real-corrigido",
                     "plataforma" to "android",
                     "ultimoAcessoEm" to FieldValue.serverTimestamp()
                 ),
