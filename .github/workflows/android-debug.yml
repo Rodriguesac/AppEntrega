@@ -1,4 +1,4 @@
-name: Build APK Rodrigues Entregador Pro Real
+name: Build APK Rodrigues Entregador Pro Real Fonte Fixa
 
 on:
   push:
@@ -35,5 +35,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Rodrigues-Entregador-V8-0-0-Pro-Real-debug-apk
+          name: Rodrigues-Entregador-V8-0-1-Pro-Real-Fonte-Fixa-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
