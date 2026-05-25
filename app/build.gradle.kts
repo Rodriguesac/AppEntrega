@@ -16,8 +16,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 35
-        versionCode = 801
-        versionName = "8.0.1-pro-real-fonte-fixa"
+        versionCode = 802
+        versionName = "8.0.2-pro-real-limpo"
     }
 
     buildTypes {
