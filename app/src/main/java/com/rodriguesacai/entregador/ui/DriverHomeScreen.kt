@@ -162,18 +162,18 @@ private val BgTop = Color.White
 private val BgBottom = Color.White
 private val Panel = Color.White
 private val PanelSoft = Color.White
-private val Purple = Color(0xFF00A63E)
+private val Purple = Color(0xFF0FAE4B)
 private val Purple2 = Color(0xFFFF7A00)
-private val Lime = Color(0xFF008F2F)
-private val LimeDark = Color(0xFF00752B)
+private val Lime = Color(0xFF0FAE4B)
+private val LimeDark = Color(0xFF07883E)
 private val Ink = Color(0xFF101216)
-private val Muted = Color(0xFF5F6872)
-private val Muted2 = Color(0xFF9AA3AD)
-private val Danger = Color(0xFFE7192B)
-private val Warning = Color(0xFFFF9900)
-private val Blue = Color(0xFF1677FF)
-private val BorderSoft = Color(0xFFE8EDF2)
-private val FillSoft = Color(0xFFF7FAFC)
+private val Muted = Color(0xFF66717D)
+private val Muted2 = Color(0xFFA1ABB5)
+private val Danger = Color(0xFFEF233C)
+private val Warning = Color(0xFFF97316)
+private val Blue = Color(0xFF2563EB)
+private val BorderSoft = Color(0xFFE8EEF3)
+private val FillSoft = Color(0xFFF8FAFC)
 
 private enum class AvailabilityKind { Disponivel, Indisponivel, Restricao, EmEntrega }
 
@@ -532,60 +532,71 @@ private fun WelcomePermissionsScreen(
 ) {
     val context = LocalContext.current
     var permissionStatus by remember { mutableStateOf(PermissionStatusReader.read(context)) }
-    var operationPrefs by remember { mutableStateOf(DriverRepository.loadOperationalPreferences(context)) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgTop)
+            .background(Color.White)
             .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            RodriguesLogoBlock(compact = false)
-            Spacer(Modifier.height(18.dp))
-            PremiumScreenCard {
-                Text("Permissões do app", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Column {
+                Spacer(Modifier.height(12.dp))
+                RodriguesLogoBlock(compact = false)
+                Spacer(Modifier.height(22.dp))
+                Text(
+                    "Permissões essenciais",
+                    color = Ink,
+                    fontSize = 30.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = AppFont,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Ative uma vez para receber corridas com segurança, alerta urgente e localização correta.",
+                    "Configure uma vez. Depois o app recebe corridas, localização e alerta urgente sem atrapalhar a operação.",
                     color = Muted,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     fontFamily = AppFont,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                 )
-                Spacer(Modifier.height(18.dp))
-                PermissionSetupRow("Notificações", "Alertas de novas corridas.", permissionStatus.notifications) {
-                    onRequestNotificationPermission()
-                    permissionStatus = PermissionStatusReader.read(context)
+                Spacer(Modifier.height(22.dp))
+                PremiumScreenCard {
+                    PermissionSetupRow("Notificações", "Toca quando chegar oferta.", permissionStatus.notifications, Icons.Filled.NotificationsActive) {
+                        onRequestNotificationPermission()
+                        permissionStatus = PermissionStatusReader.read(context)
+                    }
+                    PermissionSetupRow("Localização", "Mapa, rota e rastreio.", permissionStatus.location, Icons.Filled.MyLocation) {
+                        onRequestLocationPermission()
+                        permissionStatus = PermissionStatusReader.read(context)
+                    }
+                    PermissionSetupRow("Alerta urgente", "Abre a tela da corrida.", permissionStatus.fullScreenIntent, Icons.Filled.Bolt) {
+                        onOpenFullScreenSettings()
+                        permissionStatus = PermissionStatusReader.read(context)
+                    }
+                    PermissionSetupRow("Bateria", "Mantém o serviço ativo.", permissionStatus.batteryUnrestricted, Icons.Filled.Shield) {
+                        onOpenBatterySettings()
+                        permissionStatus = PermissionStatusReader.read(context)
+                    }
                 }
-                PermissionSetupRow("Localização", "Mapa e rota em tempo real.", permissionStatus.location) {
-                    onRequestLocationPermission()
-                    permissionStatus = PermissionStatusReader.read(context)
-                }
-                PermissionSetupRow("Alerta urgente", "Oferta aparece mesmo fora do app.", permissionStatus.fullScreenIntent) {
-                    onOpenFullScreenSettings()
-                }
-                PermissionSetupRow("Bateria", "Mantém o serviço ativo.", permissionStatus.batteryUnrestricted) {
-                    onOpenBatterySettings()
-                }
-                Spacer(Modifier.height(16.dp))
-                PrimaryButton("Configurar permissões") {
+            }
+            Column {
+                PrimaryButton(if (permissionStatus.ready) "Tudo pronto" else "Configurar agora") {
                     if (!permissionStatus.notifications) onRequestNotificationPermission()
                     if (!permissionStatus.location) onRequestLocationPermission()
                     permissionStatus = PermissionStatusReader.read(context)
                 }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onContinue, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(20.dp)) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = onContinue, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(22.dp)) {
                     Text("Continuar", color = Lime, fontWeight = FontWeight.Black, fontFamily = AppFont)
-                }
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onContinue, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Text("Entrar sem concluir", color = Muted, fontWeight = FontWeight.Bold, fontFamily = AppFont)
                 }
             }
         }
@@ -593,27 +604,27 @@ private fun WelcomePermissionsScreen(
 }
 
 @Composable
-private fun PermissionSetupRow(title: String, message: String, ok: Boolean, onClick: () -> Unit) {
+private fun PermissionSetupRow(title: String, message: String, ok: Boolean, icon: ImageVector, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 7.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .border(1.dp, if (ok) Lime.copy(alpha = .20f) else BorderSoft, RoundedCornerShape(18.dp))
+            .padding(vertical = 5.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (ok) Color(0xFFF3FCF6) else Color.White)
+            .border(1.dp, if (ok) Lime.copy(alpha = .22f) else BorderSoft, RoundedCornerShape(22.dp))
             .clickable { if (!ok) onClick() }
-            .padding(13.dp),
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(38.dp).clip(CircleShape).background(if (ok) Lime else Color.White), contentAlignment = Alignment.Center) {
-            Icon(if (ok) Icons.Filled.CheckCircle else Icons.Filled.Shield, contentDescription = null, tint = if (ok) Color.White else Lime, modifier = Modifier.size(21.dp))
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(16.dp)).background(if (ok) Lime else Color(0xFFF2F7F4)), contentAlignment = Alignment.Center) {
+            Icon(if (ok) Icons.Filled.CheckCircle else icon, contentDescription = null, tint = if (ok) Color.White else LimeDark, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-            Text(message, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(message, color = Muted, fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
         }
-        Text(if (ok) "OK" else "Permitir", color = if (ok) Lime else LimeDark, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        Text(if (ok) "OK" else "Ativar", color = if (ok) LimeDark else Lime, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
     }
 }
 
@@ -786,12 +797,12 @@ private fun RodriguesLogoBlock(compact: Boolean = false) {
 @Composable
 private fun PremiumScreenCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth().border(1.dp, BorderSoft, RoundedCornerShape(30.dp)),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        modifier = Modifier.fillMaxWidth().border(1.dp, BorderSoft, RoundedCornerShape(28.dp))
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(30.dp)
     ) {
-        Column(Modifier.padding(22.dp), content = content)
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
 
@@ -1743,8 +1754,8 @@ private fun ActiveRideCard(ride: DriverRide, routeAddition: DriverRide? = null, 
         }
 
         RouteSummaryCompact(ride = ride, deliveryText = deliveryText, isDelivering = isDelivering)
-        RouteOrdersPanel(ride)
         PaymentOperationPanel(ride, compact = true)
+        RouteOrdersPanel(ride)
 
         if (isArrivedClient) {
             DeliveryCodeAndPaymentGate(ride = ride, paymentMachines = paymentMachines, onConfirm = { input ->
@@ -1773,15 +1784,11 @@ private fun ActiveRideCard(ride: DriverRide, routeAddition: DriverRide? = null, 
 
 @Composable
 private fun RideCompactHeader(routeCode: String, title: String, subtitle: String, status: String, statusOk: Boolean) {
-    GlassCard(padding = 14, borderColor = if (statusOk) Lime.copy(alpha = .24f) else Warning.copy(alpha = .28f)) {
+    Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(46.dp).clip(CircleShape).background(Lime.copy(alpha = .10f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Route, contentDescription = null, tint = Lime, modifier = Modifier.size(24.dp))
-            }
-            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Rota #$routeCode", color = Ink, fontSize = 21.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("$title • $subtitle", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Rota #$routeCode", color = Ink, fontSize = 26.sp, lineHeight = 28.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$title • $subtitle", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             StatusPill(status, statusOk)
         }
@@ -1790,19 +1797,19 @@ private fun RideCompactHeader(routeCode: String, title: String, subtitle: String
 
 @Composable
 private fun PickupReleaseCard(routeCode: String, ready: String) {
-    GlassCard(padding = 16, borderColor = Warning.copy(alpha = .28f)) {
+    GlassCard(padding = 18, borderColor = Warning.copy(alpha = .24f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFFFFF7E8)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Shield, contentDescription = null, tint = Warning, modifier = Modifier.size(25.dp))
+            Box(Modifier.size(56.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFFFFF4E7)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Shield, contentDescription = null, tint = Warning, modifier = Modifier.size(26.dp))
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Código de retirada", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("Código de retirada", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
                 Text("Mostre no balcão", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
             }
-            Text(routeCode, color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(routeCode, color = Ink, fontSize = 36.sp, lineHeight = 38.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             StatusPill(ready, true)
             Spacer(Modifier.width(8.dp))
@@ -3720,7 +3727,7 @@ private fun SettingsCenterContent(
             SettingButton("Problemas com corrida", "Relatar ocorrência")
         }
         SettingsSection("Sobre") {
-            SettingButton("Versão do app", "6.10.0 correções A+B")
+            SettingButton("Versão do app", "6.15.0 design system real")
             SettingButton("Termos e privacidade", "Documentos do app")
         }
     }
@@ -3805,7 +3812,7 @@ private fun MoreContent(
 
         GlassCard(padding = 18) {
             Text("Rodrigues Entregador", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versão 6.14.0 • design system premium", color = Muted2, fontSize = 12.sp)
+            Text("Versão 6.15.0 • design system real", color = Muted2, fontSize = 12.sp)
         }
     }
 }
@@ -3831,12 +3838,12 @@ private fun PermissionRow(label: String, ok: Boolean, onFix: () -> Unit) {
 @Composable
 private fun GlassCard(padding: Int = 16, borderColor: Color = BorderSoft, content: @Composable ColumnScope.() -> Unit) {
     Card(
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(30.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, borderColor, RoundedCornerShape(26.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(30.dp))
     ) {
         Column(Modifier.padding(padding.dp), content = content)
     }
@@ -3844,8 +3851,8 @@ private fun GlassCard(padding: Int = 16, borderColor: Color = BorderSoft, conten
 
 @Composable
 private fun SectionTitle(title: String, subtitle: String) {
-    Text(title, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
-    Text(subtitle, color = Muted, fontSize = 13.sp, fontFamily = AppFont)
+    Text(title, color = Ink, fontSize = 24.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+    Text(subtitle, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
 }
 
 @Composable
@@ -3878,9 +3885,9 @@ private fun PrimaryButton(text: String, enabled: Boolean = true, loading: Boolea
     Button(
         enabled = enabled,
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
-        shape = RoundedCornerShape(22.dp),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth().height(58.dp),
+        shape = RoundedCornerShape(24.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 0.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Color.White)
     ) {
         if (loading) CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = Color.White)
@@ -3913,8 +3920,12 @@ private fun TinyChip(text: String, selected: Boolean, modifier: Modifier = Modif
 
 @Composable
 private fun StatusMessage(text: String, isError: Boolean) {
-    Card(colors = CardDefaults.cardColors(containerColor = if (isError) Color(0xFF421824) else LimeDark), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(text, color = if (isError) Color(0xFFFFC4D0) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
+    Card(
+        colors = CardDefaults.cardColors(containerColor = if (isError) Color(0xFFFFF1F3) else Color(0xFFF1FCF4)),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth().border(1.dp, if (isError) Danger.copy(alpha = .20f) else Lime.copy(alpha = .22f), RoundedCornerShape(22.dp))
+    ) {
+        Text(text, color = if (isError) Danger else LimeDark, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, modifier = Modifier.padding(14.dp))
     }
 }
 

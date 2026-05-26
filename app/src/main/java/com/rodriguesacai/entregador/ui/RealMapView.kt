@@ -64,21 +64,21 @@ private const val TOMTOM_API_KEY = "tmsKTjnNOPUHNDHOYh2m12VrmwejmK8t"
 private const val ROUTE_REFRESH_MS = 30_000L
 
 private val MapPanel = Color.White
-private val MapGreen = Color(0xFF008F2F)
+private val MapGreen = Color(0xFF0FAE4B)
 private val MapOrange = Color(0xFFFF7A00)
 private val MapBlue = Color(0xFF2B8DFF)
 
 private val PremiumMapTiles = XYTileSource(
-    "CartoVoyager",
+    "CartoLightReal",
     1,
     20,
     256,
     ".png",
     arrayOf(
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://d.basemaps.cartocdn.com/rastertiles/voyager/"
+        "https://a.basemaps.cartocdn.com/light_all/",
+        "https://b.basemaps.cartocdn.com/light_all/",
+        "https://c.basemaps.cartocdn.com/light_all/",
+        "https://d.basemaps.cartocdn.com/light_all/"
     )
 )
 
@@ -313,7 +313,7 @@ private fun applyRouteToMap(map: MapView, state: RouteMapState) {
         map.overlays.add(halo)
         val line = Polyline().apply {
             setPoints(state.route)
-            outlinePaint.color = android.graphics.Color.rgb(0, 143, 47)
+            outlinePaint.color = android.graphics.Color.rgb(15, 174, 75)
             outlinePaint.strokeWidth = 9f
             outlinePaint.isAntiAlias = true
         }
@@ -324,7 +324,7 @@ private fun applyRouteToMap(map: MapView, state: RouteMapState) {
         map.overlays.add(Marker(map).apply {
             position = it
             title = "Loja / coleta"
-            icon = premiumMarkerIcon(map.context, android.graphics.Color.rgb(0, 143, 47), "L")
+            icon = premiumMarkerIcon(map.context, android.graphics.Color.rgb(15, 174, 75), "L")
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
         })
     }
@@ -392,7 +392,7 @@ private fun driverMarkerIcon(context: Context): BitmapDrawable {
     canvas.drawCircle(cx, cx, 20 * density, paint)
     paint.color = android.graphics.Color.WHITE
     canvas.drawCircle(cx, cx, 13 * density, paint)
-    paint.color = android.graphics.Color.rgb(0, 143, 47)
+    paint.color = android.graphics.Color.rgb(15, 174, 75)
     val path = android.graphics.Path().apply {
         moveTo(cx, 9 * density)
         lineTo(cx + 10 * density, cx + 10 * density)

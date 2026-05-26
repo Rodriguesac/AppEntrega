@@ -11,7 +11,7 @@ object RodriguesFonts {
         providerPackage = "com.google.android.gms",
         certificates = R.array.com_google_android_gms_fonts_certs
     )
-    private val montserrat = GoogleFont("Montserrat")
+    private val montserrat = GoogleFont("Inter")
 
     val Montserrat: FontFamily = FontFamily(
         Font(googleFont = montserrat, fontProvider = provider, weight = FontWeight.Normal),
