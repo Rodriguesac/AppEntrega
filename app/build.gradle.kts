@@ -13,8 +13,8 @@ android {
         applicationId = "com.rodriguesacai.entregador"
         minSdk = 26
         targetSdk = 36
-        versionCode = 760
-        versionName = "6.16.0-piloto-seguro"
+        versionCode = 770
+        versionName = "6.17.0-entregador-profissional"
     }
 
     buildFeatures { compose = true }

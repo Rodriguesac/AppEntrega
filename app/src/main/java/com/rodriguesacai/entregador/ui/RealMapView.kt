@@ -69,16 +69,16 @@ private val MapOrange = Color(0xFFFF7A00)
 private val MapBlue = Color(0xFF2B8DFF)
 
 private val PremiumMapTiles = XYTileSource(
-    "CartoLightReal",
+    "CartoVoyagerReal",
     1,
     20,
     256,
     ".png",
     arrayOf(
-        "https://a.basemaps.cartocdn.com/light_all/",
-        "https://b.basemaps.cartocdn.com/light_all/",
-        "https://c.basemaps.cartocdn.com/light_all/",
-        "https://d.basemaps.cartocdn.com/light_all/"
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://d.basemaps.cartocdn.com/rastertiles/voyager/"
     )
 )
 

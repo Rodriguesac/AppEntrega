@@ -1697,45 +1697,56 @@ private fun IncomingRideCard(
 }
 
 @Composable
-private fun ActiveRideCard(ride: DriverRide, routeAddition: DriverRide? = null, onOpenNavigator: (pickup: String, dropoff: String) -> Unit, onUpdateRide: (DriverRide, String) -> Unit, paymentMachines: List<PaymentMachine> = emptyList()) {
+private fun ActiveRideCard(
+    ride: DriverRide,
+    routeAddition: DriverRide? = null,
+    onOpenNavigator: (pickup: String, dropoff: String) -> Unit,
+    onUpdateRide: (DriverRide, String) -> Unit,
+    paymentMachines: List<PaymentMachine> = emptyList()
+) {
     val context = LocalContext.current
     var problemDialogOpen by remember(ride.id) { mutableStateOf(false) }
-    val inOccurrence = ride.status == "occurrence"
-    val title = when (ride.status) {
-        "accepted", "ACEITA", "A_CAMINHO_LOJA" -> "Indo para coleta"
-        "pickup", "COLETANDO", "NA_COLETA" -> "Na coleta"
-        "delivering", "EM_ROTA", "SAIU_ENTREGA" -> "Em entrega"
-        "arrived_client", "ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE" -> "No cliente"
-        "occurrence" -> "Ocorrência enviada"
-        else -> "Rota atual"
-    }
-    val nextLabel = when (ride.status) {
-        "accepted", "ACEITA", "A_CAMINHO_LOJA" -> "Cheguei na coleta"
-        "pickup", "COLETANDO", "NA_COLETA" -> if (ride.pickupReleaseAllowed) "Iniciar entrega" else "Aguardando saída"
-        "delivering", "EM_ROTA", "SAIU_ENTREGA" -> "Cheguei no cliente"
-        "arrived_client", "ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE" -> "Finalizar entrega"
-        "occurrence" -> "Aguardando gestor"
-        else -> "Atualizar etapa"
-    }
-    val nextStatus = when (ride.status) {
-        "accepted", "ACEITA", "A_CAMINHO_LOJA" -> "pickup"
-        "pickup", "COLETANDO", "NA_COLETA" -> "delivering"
-        "delivering", "EM_ROTA", "SAIU_ENTREGA" -> "arrived_client"
-        "arrived_client", "ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE" -> "finished"
-        "occurrence" -> "occurrence"
-        else -> "pickup"
-    }
-    val isArrivedClient = ride.status in listOf("arrived_client", "ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE")
-    val isDelivering = ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA", "arrived_client", "ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE")
-    val waitingPickupRelease = ride.status in listOf("pickup", "COLETANDO", "NA_COLETA") && !ride.pickupReleaseAllowed
+    val inOccurrence = ride.status == "occurrence" || ride.status.uppercase(Locale.ROOT).contains("OCORRENCIA")
+    val accepted = ride.status in listOf("accepted", "ACEITA", "ACEITO", "A_CAMINHO_LOJA", "INDO_COLETA")
+    val atPickup = ride.status in listOf("pickup", "COLETANDO", "NA_COLETA", "EM_COLETA", "AGUARDANDO_SAIDA")
+    val delivering = ride.status in listOf("delivering", "EM_ROTA", "SAIU_ENTREGA", "A_CAMINHO_CLIENTE")
+    val arrivedClient = ride.status in listOf("arrived_client", "ENTREGADOR_NO_LOCAL", "CHEGOU_CLIENTE")
+    val isDelivering = delivering || arrivedClient
+    val waitingPickupRelease = atPickup && !ride.pickupReleaseAllowed
     val routeCode = ride.routeReleaseCode.ifBlank { ride.routeId.ifBlank { ride.orderCode.ifBlank { ride.id.takeLast(4).uppercase(Locale.ROOT) } } }
     val totalOrders = ride.routeOrderCount.coerceAtLeast(if (ride.routeOrders.isNotEmpty()) ride.routeOrders.size else 1)
     val readyOrders = ride.routeReadyCount.coerceAtLeast(ride.routeOrders.count { it.ready }).coerceAtMost(totalOrders)
-    val routeSubtitle = when {
-        totalOrders > 1 -> "$readyOrders de $totalOrders prontos"
-        readyOrders >= 1 || ride.routeOrders.firstOrNull()?.ready == true -> "1 pedido pronto"
-        else -> "1 pedido"
+    val actionTitle = when {
+        inOccurrence -> "Aguardando gestor"
+        arrivedClient -> "Confirmar entrega"
+        delivering -> "Ir até o cliente"
+        waitingPickupRelease -> "Retirada no balcão"
+        atPickup -> "Saída liberada"
+        else -> "Ir para coleta"
     }
+    val actionMessage = when {
+        inOccurrence -> "Ocorrência registrada. Aguarde retorno da operação."
+        arrivedClient -> "Confirme código e pagamento antes de finalizar."
+        delivering -> "Siga até o endereço liberado e avise quando chegar."
+        waitingPickupRelease -> "Mostre o código no balcão e aguarde a saída do gestor."
+        atPickup -> "A rota está liberada. Inicie a entrega."
+        else -> "Vá até a loja e confirme a chegada."
+    }
+    val nextLabel = when {
+        inOccurrence -> "Aguardando gestor"
+        arrivedClient -> "Finalizar entrega"
+        delivering -> "Cheguei no cliente"
+        waitingPickupRelease -> "Aguardando saída"
+        atPickup -> "Iniciar entrega"
+        else -> "Cheguei na coleta"
+    }
+    val nextStatus = when {
+        arrivedClient -> "finished"
+        delivering -> "arrived_client"
+        atPickup -> "delivering"
+        else -> "pickup"
+    }
+    val mapMode = if (isDelivering) DeliveryMapMode.DRIVER_TO_DROPOFF else DeliveryMapMode.DRIVER_TO_PICKUP
     val deliveryText = if (isDelivering) {
         ride.dropoff.ifBlank { ride.neighborhood.ifBlank { "Endereço indisponível" } }
     } else {
@@ -1743,44 +1754,67 @@ private fun ActiveRideCard(ride: DriverRide, routeAddition: DriverRide? = null, 
     }
     val navDestination = if (isDelivering) ride.dropoff else ride.pickup
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        RideCompactHeader(
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        MissionHeroHeader(
             routeCode = routeCode,
-            title = title,
-            subtitle = routeSubtitle,
-            status = if (inOccurrence) "Aguardando gestor" else if (waitingPickupRelease) "Aguardando saída" else if (ride.pickupReleaseAllowed && !isDelivering) "Liberada" else ride.status.statusLabel(),
-            statusOk = !waitingPickupRelease && !inOccurrence
+            stage = actionTitle,
+            ordersText = if (totalOrders > 1) "$readyOrders/$totalOrders prontos" else if (readyOrders > 0) "1 pedido pronto" else "1 pedido",
+            blocked = waitingPickupRelease || inOccurrence,
+            inOccurrence = inOccurrence
         )
 
         if (routeAddition != null) {
-            CompactNotice(Icons.Filled.ReceiptLong, "Pedido adicionado", "Rota atualizada pelo gestor", Blue)
+            CompactNotice(Icons.Filled.ReceiptLong, "Rota atualizada", "Novo pedido entrou na mesma rota", Blue)
         }
 
-        if (inOccurrence) {
-            CompactNotice(Icons.Filled.ErrorOutline, "Ocorrência enviada", "Aguardando resposta do gestor", Warning)
+        Box {
+            RealDeliveryMap(
+                title = "Rota #$routeCode",
+                subtitle = listOf(ride.distance, ride.duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { actionTitle },
+                pickupAddress = ride.pickup,
+                dropoffAddress = if (isDelivering) ride.dropoff else ride.neighborhood,
+                pickupLat = ride.pickupLat,
+                pickupLng = ride.pickupLng,
+                dropoffLat = ride.dropoffLat,
+                dropoffLng = ride.dropoffLng,
+                mode = mapMode,
+                modifier = Modifier.height(250.dp)
+            )
+            MissionMapOverlay(
+                title = if (isDelivering) "Entrega" else "Coleta",
+                subtitle = if (isDelivering) deliveryText else ride.pickup.ifBlank { "Rodrigues Açaí e Cia." }
+            )
         }
 
-        if (waitingPickupRelease) {
-            PickupReleaseCard(routeCode = routeCode, ready = routeSubtitle)
-        }
-
-        RealDeliveryMap(
-            title = "Rota atual",
-            subtitle = listOf(ride.distance, ride.duration).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { title },
-            pickupAddress = ride.pickup,
-            dropoffAddress = if (isDelivering) ride.dropoff else ride.neighborhood,
-            pickupLat = ride.pickupLat,
-            pickupLng = ride.pickupLng,
-            dropoffLat = ride.dropoffLat,
-            dropoffLng = ride.dropoffLng,
-            mode = if (isDelivering) DeliveryMapMode.DRIVER_TO_DROPOFF else DeliveryMapMode.DRIVER_TO_PICKUP
+        MissionActionPanel(
+            title = actionTitle,
+            message = actionMessage,
+            routeCode = routeCode.takeIf { waitingPickupRelease },
+            accent = when {
+                inOccurrence -> Warning
+                waitingPickupRelease -> Warning
+                isDelivering -> Lime
+                else -> Blue
+            }
         )
 
-        RouteSummaryCompact(ride = ride, deliveryText = deliveryText, isDelivering = isDelivering)
-        PaymentOperationPanel(ride, compact = true)
-        RouteOrdersPanel(ride)
+        MissionStopsPanel(
+            pickup = ride.pickup.ifBlank { "Rodrigues Açaí e Cia." },
+            delivery = deliveryText,
+            isDelivering = isDelivering,
+            distance = ride.distance,
+            duration = ride.duration
+        )
 
-        if (isArrivedClient) {
+        MissionPaymentBar(ride)
+
+        if (totalOrders > 1 || ride.routeOrders.isNotEmpty()) {
+            MissionOrdersStrip(ride)
+        } else {
+            MissionSingleOrderLine(ride)
+        }
+
+        if (arrivedClient) {
             DeliveryCodeAndPaymentGate(ride = ride, paymentMachines = paymentMachines, onConfirm = { input ->
                 DriverRepository.savePaymentSettlementForRide(
                     context = context,
@@ -1791,16 +1825,15 @@ private fun ActiveRideCard(ride: DriverRide, routeAddition: DriverRide? = null, 
                 )
             })
         } else {
-            RideActionArea(
-                waitingPickupRelease = waitingPickupRelease || inOccurrence,
+            MissionActionsDock(
                 canNavigate = navDestination.isNotBlank() && !waitingPickupRelease && !inOccurrence,
+                blocked = waitingPickupRelease || inOccurrence,
                 nextLabel = nextLabel,
+                blockedLabel = if (inOccurrence) "Aguardando gestor" else "Aguardando saída",
+                problemEnabled = !inOccurrence,
                 onNavigate = { onOpenNavigator(ride.pickup, navDestination) },
                 onProblem = { problemDialogOpen = true },
-                onNext = { if (!inOccurrence) onUpdateRide(ride, nextStatus) },
-                blockedLabel = if (inOccurrence) "Aguardando gestor" else "Aguardando saída",
-                problemLabel = if (inOccurrence) "Ocorrência enviada" else "Problema na rota",
-                problemEnabled = !inOccurrence
+                onNext = { if (!waitingPickupRelease && !inOccurrence) onUpdateRide(ride, nextStatus) }
             )
         }
 
@@ -1822,6 +1855,238 @@ private fun ActiveRideCard(ride: DriverRide, routeAddition: DriverRide? = null, 
                 )
             }
         )
+    }
+}
+
+@Composable
+private fun MissionHeroHeader(routeCode: String, stage: String, ordersText: String, blocked: Boolean, inOccurrence: Boolean) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(28.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth().border(1.dp, BorderSoft, RoundedCornerShape(28.dp))
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(50.dp).clip(RoundedCornerShape(18.dp)).background(if (inOccurrence) Color(0xFFFFF7E8) else Color(0xFFEAF8EE)), contentAlignment = Alignment.Center) {
+                Icon(if (inOccurrence) Icons.Filled.ErrorOutline else Icons.Filled.Route, contentDescription = null, tint = if (inOccurrence) Warning else Lime, modifier = Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Rota #$routeCode", color = Ink, fontSize = 24.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$stage • $ordersText", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            StatusPill(if (inOccurrence) "Ocorrência" else if (blocked) "Pendente" else "Ativa", !blocked && !inOccurrence)
+        }
+    }
+}
+
+@Composable
+private fun MissionMapOverlay(title: String, subtitle: String) {
+    Box(
+        Modifier
+            .padding(12.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = .94f))
+            .border(1.dp, BorderSoft, RoundedCornerShape(999.dp))
+            .padding(horizontal = 13.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(if (title == "Coleta") Lime else Purple2))
+            Spacer(Modifier.width(8.dp))
+            Text("$title • ", color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(subtitle, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun MissionActionPanel(title: String, message: String, routeCode: String?, accent: Color) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = .07f)),
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = .18f), RoundedCornerShape(24.dp))
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                Icon(if (routeCode != null) Icons.Filled.Shield else Icons.Filled.Bolt, contentDescription = null, tint = accent, modifier = Modifier.size(23.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(message, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont, lineHeight = 16.sp)
+            }
+            if (routeCode != null) {
+                Text(routeCode, color = Ink, fontSize = 30.sp, lineHeight = 32.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionStopsPanel(pickup: String, delivery: String, isDelivering: Boolean, distance: String, duration: String) {
+    GlassCard(padding = 14) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MissionStopMini(Icons.Filled.Storefront, "Coleta", pickup, Lime, Modifier.weight(1f))
+            MissionStopMini(Icons.Filled.Place, if (isDelivering) "Cliente" else "Entrega", delivery, if (isDelivering) Lime else Purple2, Modifier.weight(1f))
+        }
+        if (distance.isNotBlank() || duration.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (distance.isNotBlank()) MissionMiniMetric("Distância", distance, Icons.Filled.Route, Modifier.weight(1f))
+                if (duration.isNotBlank()) MissionMiniMetric("Tempo", duration, Icons.Filled.Schedule, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionStopMini(icon: ImageVector, label: String, value: String, color: Color, modifier: Modifier) {
+    Row(modifier.clip(RoundedCornerShape(18.dp)).background(Color(0xFFF8FAFC)).border(1.dp, BorderSoft, RoundedCornerShape(18.dp)).padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(color.copy(alpha = .11f)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, color = Muted2, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(value.ifBlank { "Não informado" }, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun MissionMiniMetric(label: String, value: String, icon: ImageVector, modifier: Modifier) {
+    Row(modifier.clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, BorderSoft, RoundedCornerShape(16.dp)).padding(horizontal = 11.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = Lime, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(7.dp))
+        Text("$label: ", color = Muted2, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = AppFont)
+        Text(value, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun MissionPaymentBar(ride: DriverRide) {
+    val kind = ride.paymentKind()
+    val accent = when (kind) {
+        "ONLINE" -> Lime
+        "MAQUININHA" -> Blue
+        "DINHEIRO" -> Warning
+        "PIX" -> LimeDark
+        else -> Muted2
+    }
+    val title = when (kind) {
+        "ONLINE" -> "Pago online"
+        "MAQUININHA" -> "Maquininha"
+        "DINHEIRO" -> "Dinheiro"
+        "PIX" -> "Pix"
+        else -> "Pagamento a conferir"
+    }
+    val amount = when {
+        kind == "ONLINE" -> "Nada a cobrar"
+        ride.amountToCollectNumber > 0.0 -> "Receber ${DriverRepository.formatCurrency(ride.amountToCollectNumber)}"
+        ride.clientTotalNumber > 0.0 -> "Pedido ${DriverRepository.formatCurrency(ride.clientTotalNumber)}"
+        else -> "Confirmar com gestor"
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(accent.copy(alpha = .08f))
+            .border(1.dp, accent.copy(alpha = .18f), RoundedCornerShape(22.dp))
+            .padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(if (kind == "MAQUININHA") Icons.Filled.CreditCard else Icons.Filled.Payments, contentDescription = null, tint = accent, modifier = Modifier.size(21.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+            Text(amount, color = accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+        }
+        if (kind == "DINHEIRO" && ride.changeForNumber > 0.0) StatusPill("Troco", false)
+        if (kind == "MAQUININHA") StatusPill("Máquina", true)
+    }
+}
+
+@Composable
+private fun MissionSingleOrderLine(ride: DriverRide) {
+    val code = ride.orderCode.ifBlank { ride.id.takeLast(4).uppercase(Locale.ROOT) }
+    GlassCard(padding = 13) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Lime, modifier = Modifier.size(21.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Pedido #$code", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text(listOf(ride.customerName.ifBlank { "Cliente" }, ride.paymentSummaryForUi()).joinToString(" • "), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            StatusPill("Pronto", true)
+        }
+    }
+}
+
+@Composable
+private fun MissionOrdersStrip(ride: DriverRide) {
+    var expanded by remember(ride.id) { mutableStateOf(false) }
+    val orders = ride.routeOrders
+    val total = ride.routeOrderCount.coerceAtLeast(if (orders.isNotEmpty()) orders.size else 1)
+    val ready = ride.routeReadyCount.coerceAtLeast(orders.count { it.ready }).coerceAtMost(total)
+    GlassCard(padding = 0) {
+        Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.ReceiptLong, contentDescription = null, tint = Lime, modifier = Modifier.size(21.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Pedidos da rota", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Black, fontFamily = AppFont)
+                Text("$ready de $total prontos", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFont)
+            }
+            Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = Muted2)
+        }
+        if (expanded) {
+            Divider(color = BorderSoft)
+            if (orders.isEmpty()) {
+                CompactOrderFallback(ride, total <= 1)
+            } else {
+                orders.forEachIndexed { index, order ->
+                    RouteOrderRow(order, fallbackPaymentSummary = ride.paymentSummaryForUi())
+                    if (index != orders.lastIndex) Divider(color = BorderSoft)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionActionsDock(
+    canNavigate: Boolean,
+    blocked: Boolean,
+    nextLabel: String,
+    blockedLabel: String,
+    problemEnabled: Boolean,
+    onNavigate: () -> Unit,
+    onProblem: () -> Unit,
+    onNext: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (canNavigate) {
+                OutlinedButton(onClick = onNavigate, modifier = Modifier.weight(1f).height(54.dp), shape = RoundedCornerShape(18.dp)) {
+                    Icon(Icons.Filled.Route, contentDescription = null, tint = Lime, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Navegar", color = Lime, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1)
+                }
+            }
+            Button(
+                onClick = onNext,
+                enabled = !blocked,
+                modifier = Modifier.weight(if (canNavigate) 1.35f else 1f).height(54.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (blocked) Color(0xFFE6E9EC) else Lime, contentColor = if (blocked) Muted2 else Color.White)
+            ) {
+                Text(if (blocked) blockedLabel else nextLabel, fontWeight = FontWeight.Black, fontFamily = AppFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        OutlinedButton(onClick = onProblem, enabled = problemEnabled, modifier = Modifier.fillMaxWidth().height(44.dp), shape = RoundedCornerShape(18.dp)) {
+            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = if (problemEnabled) Warning else Muted2, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (problemEnabled) "Problema na rota" else "Ocorrência enviada", color = if (problemEnabled) Warning else Muted2, fontWeight = FontWeight.Black, fontFamily = AppFont, fontSize = 13.sp)
+        }
     }
 }
 
